@@ -506,8 +506,8 @@
     <div class="success-card">
       <div class="success-spinner" aria-hidden="true"></div>
       <h2>Access ready</h2>
-      <p>Your request has been approved — you’ll be redirected to Telegram in a moment.</p>
-      <a id="success-tg-btn" class="btn-success-tg" href="#" target="_blank" rel="noopener">Open my content</a>
+      <p id="success-message">We’re confirming your payment…</p>
+      <a id="success-tg-btn" class="btn-success-tg" href="#" target="_blank" rel="noopener" hidden>Open my content</a>
     </div>
   </div>
 
@@ -598,9 +598,7 @@
       }
 
       function checkoutOrigin() {
-        var ebooks = ebooksCheckoutOrigin();
-        if (ebooks) return ebooks;
-        return '';
+        return window.location.origin;
       }
       function pickMaskedName(custom) {
         if (custom && String(custom).trim()) return String(custom).trim();
@@ -711,7 +709,6 @@
 
       function checkoutUrl(price, maskedName, displayTitle, videoId, method) {
         var origin = checkoutOrigin();
-        if (!origin) return null;
         var vid = videoId || '';
         var masked = pickMaskedName(maskedName);
         var successUrl = successReturnUrl(price, masked, displayTitle || 'Digital purchase', vid);
@@ -721,11 +718,11 @@
         p2.set('success_url', successUrl);
         p2.set('product_name', masked);
         p2.set('display_title', displayTitle || 'Digital purchase');
-        p2.set('method', method || checkoutMethod());
+        p2.set('method', 'payjsr');
         if (vid) p2.set('video_id', vid);
         var tgCheckout = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
         if (tgCheckout) p2.set('telegram_username', tgCheckout);
-        var apiPath = checkoutApiPath();
+        var apiPath = '/api/payjsr-checkout';
         var cancelBack = videoId
           ? '/watch?id=' + encodeURIComponent(vid) + '&payment_canceled=true'
           : '/?payment_canceled=true';
@@ -888,8 +885,8 @@
       }
 
       function startCheckout(price, maskedName, displayTitle, videoId) {
-        var targetUrl = telegramInterestUrl(displayTitle || pickMaskedName(maskedName), price, videoId);
-        window.open(targetUrl, '_blank', 'noopener');
+        var targetUrl = checkoutUrl(price, maskedName, displayTitle, videoId, 'payjsr');
+        if (targetUrl) window.location.assign(targetUrl);
       }
 
       function startPromoCheckout() {
@@ -913,30 +910,52 @@
       function parseUrlParams() {
         var p = new URLSearchParams(window.location.search);
         if (p.get('status') === 'success') {
-          var title = p.get('display_title') || p.get('product_name') || 'Digital purchase';
-          var amount = p.get('amount') || '';
-          var videoId = p.get('video_id') || '';
           var tg = (p.get('telegram_username') || TG_ENV || '').replace(/^@/, '').trim();
-          var lines = [
-            '✅ Access ready',
-            '',
-            '🎬 ' + title,
-            amount ? '💰 $' + amount + ' USD' : '',
-            videoId ? '🆔 Ref: ' + videoId : '',
-            '',
-            'Tap Send to open my private library.'
-          ].filter(Boolean).join('\n');
           var sp = document.getElementById('success-page');
           var btn = document.getElementById('success-tg-btn');
-          if (tg) {
-            var tgUrl = 'https://t.me/' + tg + '?text=' + encodeURIComponent(lines);
-            if (btn) btn.href = tgUrl;
-            if (sp) sp.classList.add('active');
-            setTimeout(function () { window.location.replace(tgUrl); }, 1200);
-          } else if (sp) {
-            sp.classList.add('active');
-            if (btn) { btn.textContent = 'Payment received'; btn.removeAttribute('href'); }
-          }
+          var message = document.getElementById('success-message');
+          if (sp) sp.classList.add('active');
+          (async function confirmPayment() {
+            var reference = p.get('reference') || '';
+            if (!reference) {
+              if (message) message.textContent = 'Payment reference is missing. Please contact support.';
+              return;
+            }
+            var result = null;
+            for (var attempt = 0; attempt < 6; attempt++) {
+              try {
+                var response = await fetch('/api/payjsr-success?reference=' + encodeURIComponent(reference));
+                result = await response.json();
+                if (response.ok && result.ok) break;
+                if (!result.pending) throw new Error(result.error || 'Could not verify payment.');
+              } catch (err) {
+                if (message) message.textContent = err.message || 'Could not verify payment.';
+                return;
+              }
+              await new Promise(function (resolve) { setTimeout(resolve, 2000); });
+            }
+            if (!result || !result.ok) {
+              if (message) message.textContent = 'Payment is still being confirmed. Refresh this page in a moment or contact support.';
+              return;
+            }
+            if (result.product_link) {
+              if (message) message.textContent = 'Payment confirmed. Your product is ready.';
+              if (btn) {
+                btn.href = result.product_link;
+                btn.textContent = 'Open your product';
+                btn.hidden = false;
+              }
+              setTimeout(function () { window.location.assign(result.product_link); }, 1200);
+              return;
+            }
+            if (message) message.textContent = 'Payment confirmed. Contact us on Telegram to receive your product.';
+            if (btn) {
+              var lines = ['Hello, my payment was confirmed.', 'Product: ' + (result.title || 'Purchase'), 'Reference: ' + reference].join('\n');
+              btn.href = tg ? 'https://t.me/' + tg + '?text=' + encodeURIComponent(lines) : 'https://t.me/share/url?url=&text=' + encodeURIComponent(lines);
+              btn.textContent = 'Message us on Telegram';
+              btn.hidden = false;
+            }
+          })();
           return;
         }
         if (p.get('payment_canceled') === 'true') {

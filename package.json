@@ -2,7 +2,7 @@
   "name": "videos-storefront",
   "version": "1.0.0",
   "type": "module",
-  "description": "Lists videos from Supabase; checkout redirects to ebooks site (masked)",
+  "description": "Video storefront with PayJSR checkout",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

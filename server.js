@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { registerPayjsrRoutes } from './payjsr-checkout.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -240,6 +241,20 @@ function sanitizeObjectKey(raw) {
 }
 
 app.use(express.json());
+registerPayjsrRoutes(app, {
+  siteName: SITE_NAME,
+  getVideoForCheckout: async (id) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, title, price, is_free, is_active, product_link')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  getTelegramUsername: resolveTelegramUsername,
+});
 
 const SESSION_COOKIE = 'vv_admin';
 const SESSION_DAYS = 7;
@@ -405,6 +420,7 @@ app.get('/api/health', async (req, res) => {
     site: SITE_NAME,
     supabase: Boolean(supabase),
     ebooks_checkout_origin: Boolean(EBOOKS_SITE_URL),
+    payjsr_configured: Boolean(trimEnv('PAYJSR_SECRET_KEY', 'PAYJSR_API_KEY')),
     telegram: Boolean(String(TELEGRAM_USERNAME || '').trim()),
     wasabi_signed_urls: Boolean(w.signingReady),
     wasabi_from_env: Boolean(wasabiSecretFromEnv().signingReady),

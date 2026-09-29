@@ -1,8 +1,11 @@
+import crypto from 'node:crypto';
+
 /**
  * PayJSR checkout on videos-site (same-origin) — payment-link matching.
  */
 
 const PAYJSR_CHECKOUT_CURRENCY = 'ZAR';
+const PAYJSR_API_BASE = 'https://checkout.payjsr.com/api';
 
 
 function escapeHtml(s) {
@@ -330,7 +333,7 @@ function sendPayJSRCheckoutPage(res, payload) {
 </html>`);
 }
 
-export function registerPayjsrRoutes(app, { siteName }) {
+export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTelegramUsername }) {
   app.get('/api/payjsr-fx', async (req, res) => {
     try {
       const from = normalizeCurrencyCode(req.query.from, PAYJSR_CHECKOUT_CURRENCY);
@@ -353,83 +356,85 @@ export function registerPayjsrRoutes(app, { siteName }) {
   async function handleCheckout(req, res) {
     try {
       const q = req.query;
-      const amount = q.amount != null && q.amount !== '' ? String(q.amount) : '';
-      const amountNumber = Number(amount);
-      if (!amount || !Number.isFinite(amountNumber) || amountNumber <= 0) {
+      const videoId = String(q.video_id || '').trim();
+      if (!videoId || typeof getVideoForCheckout !== 'function') {
+        return res.status(400).send('Missing video. Please return to the store and try again.');
+      }
+      const video = await getVideoForCheckout(videoId);
+      if (!video || !video.is_active || video.is_free || !(Number(video.price) > 0)) {
+        return res.status(404).send('This video is unavailable for purchase.');
+      }
+      const amountNumber = Number(video.price);
+      if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
         return res.status(400).send('Missing or invalid amount');
       }
 
       const listCurrency = normalizeCurrencyCode(q.currency, 'USD');
       const listAmountMinor = majorToMinor(amountNumber, 2);
-      if (listAmountMinor < 100) {
-        return res.status(400).send('Amount too small (minimum is $1.00)');
+      if (listAmountMinor < 50) {
+        return res.status(400).send('Amount too small (minimum is $0.50)');
       }
-
-      const configuredLinks = getPayJSRPaymentLinks();
-      if (!configuredLinks.length) {
-        return res.status(500).send(
-          'PayJSR payment links not configured. Set PAYJSR_PAYMENT_LINKS on this service.'
-        );
+      if (!['ZAR', 'USD', 'EUR'].includes(listCurrency)) {
+        return res.status(400).send('Unsupported currency. Use ZAR, USD or EUR.');
       }
-
-      let zarQuote = null;
-      try {
-        zarQuote = await cachedFxQuote(listCurrency, PAYJSR_CHECKOUT_CURRENCY, listAmountMinor, 2);
-      } catch (err) {
-        console.warn('PayJSR FX quote failed:', err?.message || err);
-      }
-
-      const zarAmountMinor = zarQuote ? Math.max(100, zarQuote.amountMinor) : 0;
-      const zarAmountMajor = zarQuote ? minorToMajor(zarAmountMinor, 2) : 0;
-
-      const match = findMatchingPayJSRLink({
-        listAmountMajor: amountNumber,
-        listCurrency,
-        zarAmountMajor,
-        tolerance: Number(process.env.PAYJSR_LINK_TOLERANCE || 0.12),
-      });
-
-      if (!match) {
-        const catalog = configuredLinks
-          .map((l) => (l.amountUsd != null ? `$${l.amountUsd}` : `R${l.amountZar}`))
-          .join(', ');
-        return res.status(404).send(
-          `No PayJSR link for ${amountNumber} ${listCurrency}. Configured: ${catalog || 'none'}.`
-        );
-      }
-
-      const checkoutUrl = match.link.url;
-      const displayZarMajor =
-        match.link.amountZar != null ? Number(match.link.amountZar) : zarAmountMajor || amountNumber;
-      const displayZarMinor = majorToMinor(displayZarMajor, 2);
 
       const masked = String(q.product_name || 'Digital Ebook').trim() || 'Digital Ebook';
-      const real = String(q.display_title || masked).trim();
+      const real = String(video.title || q.display_title || masked).trim();
       const canceled = String(q.payment_canceled || '').toLowerCase() === 'true';
       const wantJson =
         String(q.format || '').toLowerCase() === 'json' ||
         String(req.get('accept') || '').includes('application/json');
 
-      console.log('PayJSR same-origin checkout:', {
-        amount: amountNumber,
-        match: match.matchType,
-        url: checkoutUrl,
-        json: wantJson,
-      });
+      const secretKey = String(process.env.PAYJSR_SECRET_KEY || process.env.PAYJSR_API_KEY || '').trim();
+      if (!secretKey) {
+        return res.status(503).send('PayJSR is not configured. Set PAYJSR_SECRET_KEY on this service.');
+      }
+      const expectedOrigin = `${req.get('x-forwarded-proto') || req.protocol}://${req.get('host')}`;
+      const reference = crypto.randomUUID();
+      const successUrl = `${expectedOrigin}/?status=success&reference=${encodeURIComponent(reference)}`;
+      let apiResponse;
+      try {
+        apiResponse = await fetch(`${PAYJSR_API_BASE}/v1/checkout/sessions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${secretKey}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': reference,
+          },
+          body: JSON.stringify({
+            amount: amountNumber,
+            currency: listCurrency,
+            name: masked.slice(0, 120),
+            success_url: successUrl,
+            reference,
+            metadata: { video_id: videoId, display_title: real.slice(0, 500) },
+          }),
+        });
+      } catch (err) {
+        console.error('PayJSR API request failed:', err?.message || err);
+        return res.status(502).send('Could not reach PayJSR. Please try again.');
+      }
+      const session = await apiResponse.json().catch(() => ({}));
+      const checkoutUrl = session.url || session.data?.url || session.checkout_session?.url;
+      if (!apiResponse.ok || !checkoutUrl || !/^https:\/\//i.test(checkoutUrl)) {
+        console.error('PayJSR session creation failed:', apiResponse.status, session);
+        return res.status(502).send('PayJSR could not create this checkout. Please try again.');
+      }
+
+      console.log('PayJSR checkout session created:', { amount: amountNumber, currency: listCurrency });
 
       if (wantJson) {
         return res.json({
           ok: true,
           checkout_url: checkoutUrl,
-          amount_usd: amountNumber,
-          amount_zar: Number(displayZarMajor.toFixed(2)),
+          amount: amountNumber,
           currency_list: listCurrency,
           product_name: masked,
           display_title: real,
         });
       }
 
-      // Keep the configured payment link and provider settlement unchanged.
+      // Send the buyer to the hosted PayJSR checkout.
       if (String(q.redirect || '1') !== '0') {
         return res.redirect(302, checkoutUrl);
       }
@@ -439,8 +444,8 @@ export function registerPayjsrRoutes(app, { siteName }) {
         checkoutUrl,
         realTitle: real,
         maskedLabel: masked,
-        zarAmountMajor: displayZarMajor.toFixed(2),
-        zarAmountMinor: displayZarMinor,
+        zarAmountMajor: '',
+        zarAmountMinor: 0,
         listAmountMajor: amountNumber.toFixed(2),
         listCurrency,
         canceled,
@@ -457,4 +462,50 @@ export function registerPayjsrRoutes(app, { siteName }) {
 
   app.get('/api/payjsr-checkout', handleCheckout);
   app.get('/api/paypal-checkout', handleCheckout);
+
+  app.get('/api/payjsr-success', async (req, res) => {
+    try {
+      const reference = String(req.query.reference || '').trim();
+      if (!/^[0-9a-f-]{36}$/i.test(reference)) {
+        return res.status(400).json({ ok: false, error: 'Invalid payment reference.' });
+      }
+      const secretKey = String(process.env.PAYJSR_SECRET_KEY || process.env.PAYJSR_API_KEY || '').trim();
+      if (!secretKey) return res.status(503).json({ ok: false, error: 'PayJSR is not configured.' });
+      const apiResponse = await fetch(`${PAYJSR_API_BASE}/v1/checkout/sessions?limit=100&reference=${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      const payload = await apiResponse.json().catch(() => ({}));
+      if (!apiResponse.ok) {
+        console.error('PayJSR session verification failed:', apiResponse.status, payload);
+        return res.status(502).json({ ok: false, error: 'Could not verify payment yet.' });
+      }
+      const sessions = Array.isArray(payload) ? payload :
+        Array.isArray(payload.data) ? payload.data :
+        Array.isArray(payload.sessions) ? payload.sessions :
+        Array.isArray(payload.data?.sessions) ? payload.data.sessions : [];
+      const session = sessions.find((item) => item?.reference === reference);
+      if (!session || session.status !== 'complete') {
+        return res.status(402).json({ ok: false, pending: true, error: 'Payment is not confirmed yet.' });
+      }
+      const videoId = String(session.metadata?.video_id || '').trim();
+      if (!videoId || typeof getVideoForCheckout !== 'function') {
+        return res.status(404).json({ ok: false, error: 'Purchased product was not found.' });
+      }
+      const video = await getVideoForCheckout(videoId);
+      if (!video) return res.status(404).json({ ok: false, error: 'Purchased product was not found.' });
+      const productLink = String(video.product_link || '').trim();
+      const safeProductLink = /^https?:\/\//i.test(productLink) ? productLink : '';
+      res.json({
+        ok: true,
+        title: video.title || 'Your purchase',
+        amount: session.amount,
+        currency: session.currency,
+        product_link: safeProductLink,
+        telegram_username: typeof getTelegramUsername === 'function' ? await getTelegramUsername() : '',
+      });
+    } catch (err) {
+      console.error('PayJSR payment verification error:', err?.message || err);
+      res.status(500).json({ ok: false, error: 'Payment verification failed.' });
+    }
+  });
 }

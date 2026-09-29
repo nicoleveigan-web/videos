@@ -415,9 +415,7 @@
       }
 
       function checkoutOrigin() {
-        var ebooks = ebooksCheckoutOrigin();
-        if (ebooks) return ebooks;
-        return '';
+        return window.location.origin;
       }
       var MASKED_PRODUCT_NAME = 'Digital Ebook';
       function pickMaskedName(custom) {
@@ -531,7 +529,6 @@
       }
       function checkoutUrl(price, maskedName, displayTitle, videoId, method) {
         var origin = checkoutOrigin();
-        if (!origin) return null;
         var masked = pickMaskedName(maskedName);
         var successUrl = successReturnUrl(price, masked, displayTitle || 'Digital purchase', videoId);
         var p2 = new URLSearchParams();
@@ -540,11 +537,11 @@
         p2.set('success_url', successUrl);
         p2.set('product_name', masked);
         p2.set('display_title', displayTitle || 'Digital purchase');
-        p2.set('method', method || checkoutMethod());
+        p2.set('method', 'payjsr');
         if (videoId) p2.set('video_id', videoId);
         var tgCheckout = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
         if (tgCheckout) p2.set('telegram_username', tgCheckout);
-        var apiPath = checkoutApiPath();
+        var apiPath = '/api/payjsr-checkout';
         var cancelBack = videoId
           ? '/watch?id=' + encodeURIComponent(String(videoId)) + '&payment_canceled=true'
           : '/?payment_canceled=true';
@@ -564,12 +561,8 @@
         return tgUser ? 'https://t.me/' + tgUser + '?text=' + enc : 'https://t.me/share/url?url=&text=' + enc;
       }
       function startCheckout(price, maskedName, displayTitle, videoId) {
-        var title = displayTitle || pickMaskedName(maskedName) || 'this item';
-        var msg = telegramInterestMessage(title, price);
-        var enc = encodeURIComponent(msg);
-        var target = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
-        var url = target ? 'https://t.me/' + target + '?text=' + enc : 'https://t.me/share/url?url=&text=' + enc;
-        window.open(url, '_blank', 'noopener');
+        var targetUrl = checkoutUrl(price, maskedName, displayTitle, videoId, 'payjsr');
+        if (targetUrl) window.location.assign(targetUrl);
       }
       function setErr(t) { var el = document.getElementById('err-banner'); el.textContent = t || ''; el.hidden = !t; }
       function parseUrlParams() {
