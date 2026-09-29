@@ -370,10 +370,10 @@
           <p class="pay-section-title">Pay with</p>
           <button type="button" class="btn btn-primary btn-pay-cta" id="btn-pay-instant">
             <span class="btn-pay-inner">
-              <span class="btn-pay-text">Request Access</span>
+              <span class="btn-pay-text">Pay Instantly</span>
             </span>
           </button>
-          <p class="pay-receive-note"><strong>Private request</strong> · quick response · secure confirmation</p>
+          <p class="pay-receive-note"><strong>Private checkout</strong> · generic payment name · secure confirmation</p>
         </div>
         <div class="pay-section" id="crypto-section" hidden>
           <p class="pay-section-title">Crypto</p>
@@ -399,6 +399,18 @@
       </div>
     </section>
   </main>
+
+  <dialog id="privacy-checkout-dialog" class="dlg-modal" aria-labelledby="privacy-checkout-title">
+    <div class="dlg-h">
+      <strong id="privacy-checkout-title">Private checkout</strong>
+      <button type="button" class="dlg-x" id="privacy-checkout-close" aria-label="Close">×</button>
+    </div>
+    <div class="dlg-b">
+      <p>For your privacy, the payment checkout will display the generic product name <strong style="color:var(--text)">Digital Ebook</strong> instead of this video's title.</p>
+      <button type="button" class="btn btn-primary" id="privacy-checkout-continue" style="margin-top:1rem">Continue to secure payment</button>
+      <button type="button" class="btn" id="privacy-checkout-cancel" style="margin-top:0.5rem">Cancel</button>
+    </div>
+  </dialog>
 
   <footer>
     <p>© {{SITE_NAME}} · 18+ only</p>
@@ -606,7 +618,7 @@
         var payBtn = document.getElementById('btn-pay-instant');
         if (payBtn) {
           payBtn.onclick = function () {
-            startCheckout(v.price, null, v.title, v.id);
+            document.getElementById('privacy-checkout-dialog').showModal();
           };
         }
         if (cryptoWallets.length) {
@@ -649,6 +661,16 @@
         if (!res.ok) { document.getElementById('loading-state').hidden = true; document.getElementById('error-state').hidden = false; return; }
         showVideo((await res.json()).video);
       }
+      var privacyDialog = document.getElementById('privacy-checkout-dialog');
+      document.getElementById('privacy-checkout-close').addEventListener('click', function () { privacyDialog.close(); });
+      document.getElementById('privacy-checkout-cancel').addEventListener('click', function () { privacyDialog.close(); });
+      document.getElementById('privacy-checkout-continue').addEventListener('click', function () {
+        privacyDialog.close();
+        if (currentVideo && !currentVideo.is_free) {
+          startCheckout(currentVideo.price, null, currentVideo.title, currentVideo.id);
+        }
+      });
+
       boot().catch(function (e) {
         document.getElementById('loading-state').hidden = true;
         document.getElementById('error-state').hidden = false;
