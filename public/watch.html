@@ -445,6 +445,7 @@
   </footer>
 
   <script src="/js/storefront.js"></script>
+  <script src="/js/purchase-toasts.js"></script>
   <script>
     (function () {
       var EBOOKS_ORIGIN = '{{EBOOKS_SITE_URL}}';
@@ -553,7 +554,9 @@
           var r = await fetch('/api/videos');
           if (!r.ok) return;
           var pack = await r.json();
-          renderMoreVideos(pack.videos || [], excludeId);
+          var videos = pack.videos || [];
+          if (window.PurchaseToasts) PurchaseToasts.setVideos(videos);
+          renderMoreVideos(videos, excludeId);
         } catch (e) {}
       }
       function successReturnUrl(price, maskedName, displayTitle, videoId) {
@@ -725,6 +728,7 @@
         loadMoreVideos(v.id);
       }
       async function boot() {
+        if (window.PurchaseToasts) PurchaseToasts.start();
         parseUrlParams();
         EBOOKS_ORIGIN = normalizeOrigin(EBOOKS_ORIGIN || '');
         try {

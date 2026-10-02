@@ -615,6 +615,7 @@
   </footer>
 
   <script src="/js/storefront.js"></script>
+  <script src="/js/purchase-toasts.js"></script>
   <script>
     (function () {
       var EBOOKS_ORIGIN = '{{EBOOKS_SITE_URL}}';
@@ -1346,6 +1347,7 @@
       });
 
       async function boot() {
+        if (window.PurchaseToasts) PurchaseToasts.start();
         parseUrlParams();
         EBOOKS_ORIGIN = normalizeOrigin(EBOOKS_ORIGIN || '');
 
@@ -1384,6 +1386,7 @@
         var pack = await vidRes.json();
         allVideos = orderVideosForGrid(pack.videos || []);
         renderGrid(allVideos, false);
+        if (window.PurchaseToasts) PurchaseToasts.setVideos(allVideos);
       }
 
       setupPaypalButton();

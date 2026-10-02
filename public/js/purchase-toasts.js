@@ -13,9 +13,10 @@
   var videoPool = [];
 
   var METHODS = [
+    'Paid with PayPal',
     'Paid with card',
-    'Paid with Apple Pay',
-    'Paid with Cash App'
+    'Paid with Cash App',
+    'Paid with Apple Pay'
   ];
 
   /** Europe, USA and other non-Africa locales. */
@@ -59,12 +60,12 @@
   }
 
   function randInt(min, max) {
-    return min;
+    return min + Math.floor(Math.random() * (max - min + 1));
   }
 
   function pick(arr) {
     if (!arr.length) return null;
-    return arr[0];
+    return arr[Math.floor(Math.random() * arr.length)];
   }
 
   function paidProducts() {
@@ -77,30 +78,23 @@
     var locale = pick(LOCALE_BAG) || LOCALES[0];
     var method = pick(METHODS);
     var who = locale.flag + ' Someone in ' + locale.label;
+    var pool = paidProducts();
+    if (pool.length && Math.random() < 0.45) {
+      var v = pick(pool);
+      return {
+        flag: locale.flag,
+        who: who,
+        method: method,
+        title: String(v.title || PROMO.title).trim(),
+        price: Number(v.price) || PROMO.price
+      };
+    }
     return {
       flag: locale.flag,
       who: who,
       method: method,
       title: PROMO.title,
       price: PROMO.price
-    };
-    var pool = paidProducts();
-    if (!pool.length) {
-      return {
-        flag: locale.flag,
-        who: who,
-        method: method,
-        title: 'Premium access',
-        price: 19.99
-      };
-    }
-    var v = pick(pool);
-    return {
-      flag: locale.flag,
-      who: who,
-      method: method,
-      title: String(v.title || 'Premium access').trim(),
-      price: Number(v.price) || 0
     };
   }
 
