@@ -202,30 +202,23 @@
     .btn-pay-text { font-weight: 800; white-space: nowrap; letter-spacing: -0.01em; }
     .pay-method-icons {
       display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
-      gap: 0.3rem; width: 100%;
+      gap: 0.55rem; width: 100%;
     }
     .pay-method-badge {
       display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem;
-      min-height: 1.45rem; padding: 0.15rem 0.35rem; border-radius: 5px;
-      background: rgba(0,0,0,0.12); color: inherit; font-size: 0.62rem; font-weight: 700;
-      line-height: 1; white-space: nowrap;
+      width: 1.45rem; height: 1.35rem; padding: 0; color: inherit;
     }
-    .pay-method-badge svg { width: 0.9rem; height: 0.9rem; flex: 0 0 auto; }
+    .pay-method-badge svg { width: 1.2rem; height: 1.2rem; flex: 0 0 auto; }
+    .pay-method-badge .pay-icon-card { width: 1.35rem; height: 1rem; }
+    .pay-method-badge .amazon-mark { width: 1.35rem; }
+    #btn-pay-instant .pay-method-icons { display: none; }
     .pay-method-badge .cashapp-mark { color: #a8ff45; }
-    .video-paypal-group { margin-top: 0.65rem; }
-    .video-paypal-group.paypal-loading { display: none; }
-    .video-paypal-heading {
-      margin: 0 0 0.4rem; color: var(--muted); font-size: 0.72rem;
-      font-weight: 700; text-align: center;
-    }
-    .video-paypal-choice { margin-top: 0.4rem; }
-    .video-paypal-fallback {
-      min-height: 2.35rem; background: #ffc439; border: 1px solid #ffc439;
-      color: #111; font-weight: 800;
-    }
-    .video-card-fallback { min-height: 2.35rem; }
-    .video-paypal-choice [hidden] { display: none !important; }
-    .video-paypal-target { min-height: 2.35rem; }
+    .video-payment-methods { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 1rem; }
+    .watch-modal-paypal-choice { min-height: 2.5rem; }
+    .watch-modal-paypal-choice.paypal-loading { display: none; }
+    .watch-modal-paypal-fallback { background: #ffc439; color: #111; border-color: #ffc439; font-weight: 800; }
+    #watch-modal-paypal-target { min-height: 2.5rem; }
+    .watch-modal-paypal-choice [hidden] { display: none !important; }
     .pay-receive-note {
       margin-top: 0.55rem;
       font-size: 0.75rem;
@@ -389,21 +382,16 @@
           <p class="pay-section-title">Pay with</p>
           <button type="button" class="btn btn-primary btn-pay-cta" id="btn-pay-instant">
             <span class="btn-pay-inner">
-              <span class="btn-pay-text">Pay Instantly</span>
-              <span class="pay-method-icons" aria-label="Card, Apple Pay, Amazon Pay, and Cash App">
-                <span class="pay-method-badge"><svg class="pay-icon-card" viewBox="0 0 24 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="22" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M2 5h20" stroke="currentColor" stroke-width="2"/><path d="M5 11h5" stroke="currentColor" stroke-width="1.5"/></svg>Card</span>
-                <span class="pay-method-badge"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.28c.02 2.06 1.81 2.75 1.83 2.76-.02.05-.29 1.02-.95 2.02-.57.86-1.17 1.71-2.11 1.73-.92.02-1.22-.56-2.28-.56-1.05 0-1.39.54-2.26.58-.9.03-1.59-.92-2.17-1.77-1.18-1.71-2.08-4.84-.87-6.95.6-1.05 1.68-1.72 2.85-1.74.89-.02 1.73.6 2.28.6.54 0 1.56-.74 2.63-.63.45.02 1.72.18 2.54 1.38-.07.04-1.52.89-1.5 2.58ZM14.63 5.78c.48-.58.8-1.39.71-2.2-.69.03-1.53.46-2.03 1.04-.45.52-.84 1.35-.73 2.14.77.06 1.57-.39 2.05-.98Z"/></svg>Apple Pay</span>
-                <span class="pay-method-badge"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 8c4.4 3.2 13.6 3.2 18 0M4 11c3.9 2.5 12.1 2.5 16 0M6 14c3 1.8 9 1.8 12 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>amazon pay</span>
-                <span class="pay-method-badge"><svg class="cashapp-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.4 2.5 15.9 4c3.2 1.5 4.7 4.2 4.7 7.7 0 5.4-3.6 9-8.8 9-2.1 0-4-.6-5.4-1.6l-1.7 1.7-1.5-1.5 1.7-1.7c-1.2-1.4-1.8-3.4-1.8-5.9 0-5.3 3.5-8.9 8.8-8.9 2 0 3.7.5 5 1.4l-1.5 1.5c-.9-.5-2-.8-3.4-.8-3.7 0-6 2.5-6 6.7 0 4.3 2.3 6.8 6 6.8 3.6 0 5.9-2.5 5.9-6.7 0-2.6-.8-4.5-2.3-5.6l-1.4 1.4c1.1.9 1.6 2.3 1.6 4.2 0 3.1-1.4 4.9-3.8 4.9-2.5 0-3.9-1.8-3.9-4.9s1.4-4.9 3.9-4.9c.5 0 .9.1 1.3.2l1.6-1.6c-.8-.4-1.8-.7-2.9-.7-3.6 0-5.8 2.6-5.8 7s2.2 7 5.8 7c3.7 0 5.9-2.6 5.9-7 0-2.4-.7-4.3-2-5.5l1.6-1.6 1.5 1.5-1.6 1.6c1.5 1.6 2.3 3.8 2.3 6.5 0 5.7-3.5 9.5-8.8 9.5-2.2 0-4.1-.6-5.6-1.7L5.5 23l-1.5-1.5 1.7-1.7C4.3 18.1 3.5 15.8 3.5 13c0-5.7 3.5-9.5 8.8-9.5 1.9 0 3.6.5 5.1 1.4L19 3.3l-1.6-.8Z"/><path d="M12.9 7.1c1.4.2 2.4.9 2.9 1.4l-1.4 1.7c-.5-.5-1.2-.9-2.1-.9-.8 0-1.3.3-1.3.9 0 .5.4.8 1.8 1.2 2 .6 3 1.6 3 3.2 0 1.8-1.3 3-3.4 3.2v1.7h-1.8v-1.7c-1.6-.2-2.8-.8-3.5-1.7l1.4-1.7c.7.7 1.6 1.1 2.6 1.1.9 0 1.5-.3 1.5-1 0-.5-.4-.8-1.9-1.3-1.8-.6-2.9-1.5-2.9-3.1 0-1.7 1.2-2.9 3.2-3.1V5.5h1.8v1.6Z"/></svg>Cash App</span>
+              <span class="btn-pay-text">Buy Now</span>
+              <span class="pay-method-icons" aria-label="Payment methods: card, Apple Pay, Amazon Pay, and Cash App">
+                <span class="pay-method-badge" title="Card" aria-label="Card"><svg class="pay-icon-card" viewBox="0 0 24 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="22" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M2 5h20" stroke="currentColor" stroke-width="2"/><path d="M5 11h5" stroke="currentColor" stroke-width="1.5"/></svg></span>
+                <span class="pay-method-badge" title="Apple Pay" aria-label="Apple Pay"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.28c.02 2.06 1.81 2.75 1.83 2.76-.02.05-.29 1.02-.95 2.02-.57.86-1.17 1.71-2.11 1.73-.92.02-1.22-.56-2.28-.56-1.05 0-1.39.54-2.26.58-.9.03-1.59-.92-2.17-1.77-1.18-1.71-2.08-4.84-.87-6.95.6-1.05 1.68-1.72 2.85-1.74.89-.02 1.73.6 2.28.6.54 0 1.56-.74 2.63-.63.45.02 1.72.18 2.54 1.38-.07.04-1.52.89-1.5 2.58ZM14.63 5.78c.48-.58.8-1.39.71-2.2-.69.03-1.53.46-2.03 1.04-.45.52-.84 1.35-.73 2.14.77.06 1.57-.39 2.05-.98Z"/></svg></span>
+                <span class="pay-method-badge" title="Amazon Pay" aria-label="Amazon Pay"><svg class="amazon-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 8c4.4 3.2 13.6 3.2 18 0M4 11c3.9 2.5 12.1 2.5 16 0M6 14c3 1.8 9 1.8 12 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+                <span class="pay-method-badge" title="Cash App" aria-label="Cash App"><svg class="cashapp-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5 9.9 3.6c-2.2-.5-4.1.6-4.1 2.8 0 1.5.9 2.3 3.6 3.1 2.3.7 3.1 1.2 3.1 2.4 0 1.3-1 2.1-2.6 2.1-1.4 0-2.7-.6-3.8-1.7l-2 2.1c1.1 1.3 2.6 2.1 4.4 2.4v2.9h2.8v-2.9c2.6-.4 4.2-2.1 4.2-4.7 0-2.3-1.2-3.5-4.4-4.5-2.1-.6-2.8-1.1-2.8-2.1 0-.9.7-1.4 1.9-1.4 1.2 0 2.4.5 3.4 1.4l1.9-2.2a8 8 0 0 0-4-1.9V1.5H12Z"/><path d="M18.9 18.4a9.6 9.6 0 1 1 1.7-2.2l1.8 1.1a11.7 11.7 0 1 0-1.3 2.2l-2.2-1.1Z"/></svg></span>
               </span>
             </span>
           </button>
           <p class="pay-receive-note"><strong>Private checkout</strong> · generic payment name · secure confirmation</p>
-          <div class="video-paypal-group" id="video-paypal-group">
-            <p class="video-paypal-heading">Or pay with PayPal</p>
-            <div class="video-paypal-choice"><button type="button" class="btn video-paypal-fallback paypal-unconfigured" id="video-paypal-fallback">Pay with PayPal</button><div class="video-paypal-target" id="video-paypal-target" hidden></div></div>
-            <div class="video-paypal-choice"><button type="button" class="btn video-card-fallback paypal-unconfigured" id="video-card-fallback">Debit or Credit Card</button><div class="video-paypal-target" id="video-card-target" hidden></div></div>
-          </div>
         </div>
         <div class="pay-section" id="crypto-section" hidden>
           <p class="pay-section-title">Crypto</p>
@@ -436,8 +424,18 @@
       <button type="button" class="dlg-x" id="privacy-checkout-close" aria-label="Close">×</button>
     </div>
     <div class="dlg-b">
-      <p>For your privacy, the payment checkout will display the generic product name <strong style="color:var(--text)">Digital Ebook</strong> instead of this video's title.</p>
-      <button type="button" class="btn btn-primary" id="privacy-checkout-continue" style="margin-top:1rem">Continue to secure payment</button>
+      <p>Choose a payment method. The secure checkout uses the generic product name <strong style="color:var(--text)">Digital Ebook</strong>.</p>
+      <div class="video-payment-methods">
+        <button type="button" class="btn btn-primary btn-pay-cta" id="privacy-checkout-payjsr"><span class="btn-pay-inner"><span class="btn-pay-text">Pay Instantly</span>
+          <span class="pay-method-icons" aria-label="Payment methods: card, Apple Pay, Amazon Pay, and Cash App">
+            <span class="pay-method-badge" title="Card" aria-label="Card"><svg class="pay-icon-card" viewBox="0 0 24 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="22" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M2 5h20" stroke="currentColor" stroke-width="2"/></svg></span>
+            <span class="pay-method-badge" title="Apple Pay" aria-label="Apple Pay"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.28c.02 2.06 1.81 2.75 1.83 2.76-.02.05-.29 1.02-.95 2.02-.57.86-1.17 1.71-2.11 1.73-.92.02-1.22-.56-2.28-.56-1.05 0-1.39.54-2.26.58-.9.03-1.59-.92-2.17-1.77-1.18-1.71-2.08-4.84-.87-6.95.6-1.05 1.68-1.72 2.85-1.74.89-.02 1.73.6 2.28.6.54 0 1.56-.74 2.63-.63.45.02 1.72.18 2.54 1.38-.07.04-1.52.89-1.5 2.58ZM14.63 5.78c.48-.58.8-1.39.71-2.2-.69.03-1.53.46-2.03 1.04-.45.52-.84 1.35-.73 2.14.77.06 1.57-.39 2.05-.98Z"/></svg></span>
+            <span class="pay-method-badge" title="Amazon Pay" aria-label="Amazon Pay"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 8c4.4 3.2 13.6 3.2 18 0M4 11c3.9 2.5 12.1 2.5 16 0M6 14c3 1.8 9 1.8 12 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <span class="pay-method-badge" title="Cash App" aria-label="Cash App"><svg class="cashapp-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5 9.9 3.6c-2.2-.5-4.1.6-4.1 2.8 0 1.5.9 2.3 3.6 3.1 2.3.7 3.1 1.2 3.1 2.4 0 1.3-1 2.1-2.6 2.1-1.4 0-2.7-.6-3.8-1.7l-2 2.1c1.1 1.3 2.6 2.1 4.4 2.4v2.9h2.8v-2.9c2.6-.4 4.2-2.1 4.2-4.7 0-2.3-1.2-3.5-4.4-4.5-2.1-.6-2.8-1.1-2.8-2.1 0-.9.7-1.4 1.9-1.4 1.2 0 2.4.5 3.4 1.4l1.9-2.2a8 8 0 0 0-4-1.9V1.5H12Z"/></svg></span>
+          </span>
+        </span></button>
+        <div class="watch-modal-paypal-choice"><button type="button" class="btn watch-modal-paypal-fallback paypal-unconfigured" id="watch-modal-paypal-fallback">Pay with PayPal</button><div id="watch-modal-paypal-target" hidden></div></div>
+      </div>
       <button type="button" class="btn" id="privacy-checkout-cancel" style="margin-top:0.5rem">Cancel</button>
     </div>
   </dialog>
@@ -453,7 +451,6 @@
       var TG_ENV = '{{TELEGRAM_USERNAME}}'.replace(/^@/, '').trim();
       var PAYPAL_CLIENT_ID = '{{PAYPAL_CLIENT_ID}}';
       var PAYPAL_ENABLED = '{{PAYPAL_ENABLED}}' === 'true';
-      var paypalSdkReady = false;
 
       function ebooksCheckoutOrigin() {
         return normalizeOrigin(String(EBOOKS_ORIGIN || '').trim().replace(/\/+$/, ''));
@@ -648,11 +645,11 @@
         document.getElementById('v-price').innerHTML =
           '$' + Number(v.price).toFixed(2) + '<small>USD</small>';
         document.getElementById('btn-contact-tg').href = tgUrlForVideo(v);
-        setupWatchPaypalButtons();
         var payBtn = document.getElementById('btn-pay-instant');
         if (payBtn) {
           payBtn.onclick = function () {
             document.getElementById('privacy-checkout-dialog').showModal();
+            setupWatchModalPaypal();
           };
         }
         if (cryptoWallets.length) {
@@ -666,22 +663,21 @@
           };
         }
       }
-      function revealWatchPaypalFallbacks(showFallbacks) {
-        var group = document.getElementById('video-paypal-group');
-        if (group) group.classList.remove('paypal-loading');
-        if (showFallbacks === false) return;
-        ['video-paypal-fallback', 'video-card-fallback'].forEach(function (id) {
-          var button = document.getElementById(id);
-          if (button) button.hidden = false;
-        });
+      var paypalSdkLoading = false;
+      var watchPaypalMounted = false;
+      function revealWatchModalPaypal() {
+        var choice = document.querySelector('.watch-modal-paypal-choice');
+        if (choice) choice.classList.remove('paypal-loading');
       }
-      function watchPaypalButtonOptions() {
-        return {
+      function mountWatchModalPaypal() {
+        if (!window.paypal || !window.paypal.Buttons || !currentVideo || watchPaypalMounted) return;
+        var target = document.getElementById('watch-modal-paypal-target');
+        var fallback = document.getElementById('watch-modal-paypal-fallback');
+        var button = window.paypal.Buttons({
+          fundingSource: window.paypal.FUNDING.PAYPAL,
+          style: { layout: 'horizontal', shape: 'rect', height: 40, color: 'gold', label: 'paypal' },
           createOrder: async function () {
-            var response = await fetch('/api/paypal/orders', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ video_id: currentVideo.id })
-            });
+            var response = await fetch('/api/paypal/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ video_id: currentVideo.id }) });
             var result = await response.json().catch(function () { return {}; });
             if (!response.ok || !result.ok || !result.id) throw new Error(result.error || 'Could not start PayPal checkout.');
             return result.id;
@@ -694,47 +690,26 @@
           },
           onCancel: function () { setErr('PayPal checkout was canceled. No payment was made.'); },
           onError: function (error) { setErr(error && error.message ? error.message : 'PayPal checkout failed. Please try again.'); }
-        };
-      }
-      function renderWatchPaypalButton(fundingSource, target, fallback) {
-        if (!paypalSdkReady || !window.paypal || !target || !fallback) return Promise.resolve(false);
-        var button = window.paypal.Buttons({
-          fundingSource: fundingSource,
-          style: fundingSource === window.paypal.FUNDING.PAYPAL
-            ? { layout: 'horizontal', shape: 'rect', height: 40, color: 'gold', label: 'paypal' }
-            : { layout: 'horizontal', shape: 'rect', height: 40 },
-          ...watchPaypalButtonOptions()
         });
-        if (!button.isEligible()) return Promise.resolve(false);
+        if (!button.isEligible()) { revealWatchModalPaypal(); return; }
         target.hidden = false;
-        return button.render(target).then(function () {
+        button.render(target).then(function () {
           fallback.hidden = true;
-          return true;
-        }).catch(function () { return false; });
+          watchPaypalMounted = true;
+          revealWatchModalPaypal();
+        }).catch(function () { revealWatchModalPaypal(); });
       }
-      function setupWatchPaypalButtons() {
-        var group = document.getElementById('video-paypal-group');
-        if (!group) return;
-        if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) {
-          group.querySelectorAll('.paypal-unconfigured').forEach(function (button) {
-            button.addEventListener('click', function () {
-              setErr('PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
-            });
-          });
-          return;
-        }
-        group.classList.add('paypal-loading');
+      function setupWatchModalPaypal() {
+        var choice = document.querySelector('.watch-modal-paypal-choice');
+        if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) return;
+        if (window.paypal && window.paypal.Buttons) { mountWatchModalPaypal(); return; }
+        if (paypalSdkLoading) return;
+        paypalSdkLoading = true;
+        if (choice) choice.classList.add('paypal-loading');
         var sdk = document.createElement('script');
         sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&currency=USD&intent=capture&enable-funding=card&components=buttons,funding-eligibility&locale=en_US';
-        sdk.onload = async function () {
-          if (!window.paypal || !window.paypal.Buttons) { revealWatchPaypalFallbacks(); return; }
-          paypalSdkReady = true;
-          var paypalButton = renderWatchPaypalButton(window.paypal.FUNDING.PAYPAL, document.getElementById('video-paypal-target'), document.getElementById('video-paypal-fallback'));
-          var cardButton = renderWatchPaypalButton(window.paypal.FUNDING.CARD, document.getElementById('video-card-target'), document.getElementById('video-card-fallback'));
-          await Promise.all([paypalButton, cardButton]);
-          revealWatchPaypalFallbacks(false);
-        };
-        sdk.onerror = revealWatchPaypalFallbacks;
+        sdk.onload = function () { paypalSdkLoading = false; mountWatchModalPaypal(); };
+        sdk.onerror = function () { paypalSdkLoading = false; revealWatchModalPaypal(); };
         document.head.appendChild(sdk);
       }
       function showVideo(v) {
@@ -769,10 +744,15 @@
       var privacyDialog = document.getElementById('privacy-checkout-dialog');
       document.getElementById('privacy-checkout-close').addEventListener('click', function () { privacyDialog.close(); });
       document.getElementById('privacy-checkout-cancel').addEventListener('click', function () { privacyDialog.close(); });
-      document.getElementById('privacy-checkout-continue').addEventListener('click', function () {
+      document.getElementById('privacy-checkout-payjsr').addEventListener('click', function () {
         privacyDialog.close();
         if (currentVideo && !currentVideo.is_free) {
           startCheckout(currentVideo.price, null, currentVideo.title, currentVideo.id);
+        }
+      });
+      document.getElementById('watch-modal-paypal-fallback').addEventListener('click', function () {
+        if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) {
+          setErr('PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
         }
       });
 

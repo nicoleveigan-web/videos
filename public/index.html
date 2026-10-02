@@ -408,6 +408,15 @@
     .pay-summary-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 0.3rem; }
     .pay-section { margin-bottom: 1rem; }
     .pay-section:last-child { margin-bottom: 0; }
+    .video-payment-choice { display: flex; flex-direction: column; gap: 0.65rem; }
+    .video-payment-choice.paypal-loading { display: none; }
+    .video-payment-choice [hidden] { display: none !important; }
+    .video-modal-paypal-target { min-height: 2.5rem; }
+    .video-modal-paypal-fallback { background: #ffc439; color: #111; border-color: #ffc439; font-weight: 800; }
+    .video-payjsr-icons { display: flex; justify-content: center; align-items: center; gap: 0.65rem; margin-top: 0.4rem; }
+    .video-payjsr-icons svg { width: 1.3rem; height: 1.3rem; }
+    .video-payjsr-icons .card-mark { width: 1.5rem; height: 1rem; }
+    .video-payjsr-icons .cash-mark { color: #a8ff45; }
     .pay-section-title {
       font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
       color: var(--muted); margin-bottom: 0.5rem;
@@ -577,6 +586,23 @@
   <dialog id="dlg-details" class="dlg-modal">
     <div class="dlg-h"><strong id="dlg-d-title">Details</strong><button type="button" class="dlg-x" data-close="d" aria-label="Close">×</button></div>
     <div class="dlg-b" id="dlg-d-body"></div>
+  </dialog>
+  <dialog id="dlg-video-payment" class="dlg-modal" aria-labelledby="dlg-video-payment-title">
+    <div class="dlg-h"><strong>Choose payment</strong><button type="button" class="dlg-x" aria-label="Close">×</button></div>
+    <div class="dlg-b">
+      <div class="pay-summary"><div class="pay-summary-title" id="dlg-video-payment-title">Video purchase</div><div class="pay-summary-price" id="dlg-video-payment-price"></div></div>
+      <div class="video-payment-choice">
+        <button type="button" class="btn btn-primary" id="video-modal-payjsr">Pay Instantly
+          <span class="video-payjsr-icons" aria-label="Card, Apple Pay, Amazon Pay, and Cash App">
+            <svg class="card-mark" viewBox="0 0 24 16" fill="none" aria-label="Card"><rect x="1" y="1" width="22" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M2 5h20" stroke="currentColor" stroke-width="2"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-label="Apple Pay"><path d="M16.36 12.28c.02 2.06 1.81 2.75 1.83 2.76-.02.05-.29 1.02-.95 2.02-.57.86-1.17 1.71-2.11 1.73-.92.02-1.22-.56-2.28-.56-1.05 0-1.39.54-2.26.58-.9.03-1.59-.92-2.17-1.77-1.18-1.71-2.08-4.84-.87-6.95.6-1.05 1.68-1.72 2.85-1.74.89-.02 1.73.6 2.28.6.54 0 1.56-.74 2.63-.63.45.02 1.72.18 2.54 1.38-.07.04-1.52.89-1.5 2.58ZM14.63 5.78c.48-.58.8-1.39.71-2.2-.69.03-1.53.46-2.03 1.04-.45.52-.84 1.35-.73 2.14.77.06 1.57-.39 2.05-.98Z"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" aria-label="Amazon Pay"><path d="M3 8c4.4 3.2 13.6 3.2 18 0M4 11c3.9 2.5 12.1 2.5 16 0M6 14c3 1.8 9 1.8 12 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg class="cash-mark" viewBox="0 0 24 24" fill="currentColor" aria-label="Cash App"><path d="M12 1.5 9.9 3.6c-2.2-.5-4.1.6-4.1 2.8 0 1.5.9 2.3 3.6 3.1 2.3.7 3.1 1.2 3.1 2.4 0 1.3-1 2.1-2.6 2.1-1.4 0-2.7-.6-3.8-1.7l-2 2.1c1.1 1.3 2.6 2.1 4.4 2.4v2.9h2.8v-2.9c2.6-.4 4.2-2.1 4.2-4.7 0-2.3-1.2-3.5-4.4-4.5-2.1-.6-2.8-1.1-2.8-2.1 0-.9.7-1.4 1.9-1.4 1.2 0 2.4.5 3.4 1.4l1.9-2.2a8 8 0 0 0-4-1.9V1.5H12Z"/></svg>
+          </span>
+        </button>
+        <div class="video-payment-choice"><button type="button" class="btn video-modal-paypal-fallback" id="video-modal-paypal-fallback">Pay with PayPal</button><div class="video-modal-paypal-target" id="video-modal-paypal-target" hidden></div></div>
+      </div>
+    </div>
   </dialog>
 
   <footer>
@@ -758,15 +784,6 @@
         );
       }
 
-      function videoPaypalActionsHtml(videoId) {
-        var loadingClass = PAYPAL_ENABLED && PAYPAL_CLIENT_ID ? ' paypal-loading' : '';
-        var pendingAttr = loadingClass ? ' hidden' : '';
-        return '<div class="video-paypal-actions' + loadingClass + '" data-video-paypal-id="' + escapeAttr(videoId) + '">' +
-          '<div class="video-paypal-choice"><button type="button" class="video-paypal-fallback paypal-unconfigured"' + pendingAttr + '>Pay with PayPal</button><div class="video-paypal-target" hidden></div></div>' +
-          '<div class="video-paypal-choice"><button type="button" class="video-card-fallback paypal-unconfigured"' + pendingAttr + '>Debit or Credit Card</button><div class="video-card-target" hidden></div></div>' +
-          '</div>';
-      }
-
       function cardDiscountPercent(v, price) {
         var raw = v.discount_percent ?? v.discount ?? v.sale_percent;
         var discount = Number(raw);
@@ -880,7 +897,7 @@
           }
           window.paypalSdkReady = true;
           renderPromoPaypalButtons();
-          renderVideoPaypalButtons();
+          if (videoPaymentDialog && videoPaymentDialog.open) renderVideoModalPaypalButton();
         };
         sdk.onerror = function () {
           revealPaypalFallbacks();
@@ -893,7 +910,7 @@
         document.querySelectorAll('.paypal-loading').forEach(function (group) {
           group.classList.remove('paypal-loading');
         });
-        document.querySelectorAll('.paypal-fallback, .video-paypal-fallback, .video-card-fallback, #paypal-card-fallback').forEach(function (button) {
+        document.querySelectorAll('.paypal-fallback, #paypal-card-fallback, .video-modal-paypal-fallback').forEach(function (button) {
           button.hidden = false;
         });
       }
@@ -962,19 +979,49 @@
         });
       }
 
-      function renderVideoPaypalButtons() {
-        if (!window.paypalSdkReady) return;
-        document.querySelectorAll('.video-paypal-actions:not([data-rendered])').forEach(function (group) {
-          group.setAttribute('data-rendered', 'true');
-          var videoId = group.getAttribute('data-video-paypal-id') || '';
-          Promise.all([
-            renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
-              group.querySelector('.video-paypal-target'), group.querySelector('.video-paypal-fallback'), videoId),
-            renderPaypalFundingButton(window.paypal.FUNDING.CARD,
-              group.querySelector('.video-card-target'), group.querySelector('.video-card-fallback'), videoId)
-          ]).then(function () { group.classList.remove('paypal-loading'); });
+      var selectedVideoForPayment = null;
+      var videoPaymentDialog = document.getElementById('dlg-video-payment');
+      function openVideoPayment(video) {
+        if (!video || video.is_free) return;
+        selectedVideoForPayment = video;
+        document.getElementById('dlg-video-payment-title').textContent = video.title || 'Video purchase';
+        document.getElementById('dlg-video-payment-price').textContent = '$' + Number(video.price).toFixed(2) + ' USD';
+        var paypalTarget = document.getElementById('video-modal-paypal-target');
+        var paypalFallback = document.getElementById('video-modal-paypal-fallback');
+        paypalTarget.innerHTML = '';
+        paypalTarget.hidden = true;
+        paypalFallback.hidden = false;
+        var paypalChoice = paypalFallback.parentElement;
+        if (paypalChoice) paypalChoice.classList.toggle('paypal-loading', PAYPAL_ENABLED && !!PAYPAL_CLIENT_ID && !window.paypalSdkReady);
+        videoPaymentDialog.showModal();
+        syncModalBodyClass();
+        if (window.paypalSdkReady && window.paypal && PAYPAL_ENABLED && PAYPAL_CLIENT_ID) renderVideoModalPaypalButton();
+      }
+      function renderVideoModalPaypalButton() {
+        if (!selectedVideoForPayment || !window.paypalSdkReady || !window.paypal || !PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) return;
+        var target = document.getElementById('video-modal-paypal-target');
+        var fallback = document.getElementById('video-modal-paypal-fallback');
+        renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL, target, fallback, selectedVideoForPayment.id).then(function () {
+          var choice = fallback.parentElement;
+          if (choice) choice.classList.remove('paypal-loading');
         });
       }
+
+      document.getElementById('video-modal-payjsr').addEventListener('click', function () {
+        if (!selectedVideoForPayment) return;
+        var video = selectedVideoForPayment;
+        videoPaymentDialog.close();
+        startCheckout(video.price, null, video.title, video.id);
+      });
+      document.getElementById('video-modal-paypal-fallback').addEventListener('click', function () {
+        if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) {
+          setErr('PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
+        } else if (!window.paypalSdkReady) {
+          setErr('PayPal is still loading. Please try again in a moment.');
+        }
+      });
+      document.querySelector('#dlg-video-payment .dlg-x').addEventListener('click', function () { videoPaymentDialog.close(); });
+      videoPaymentDialog.addEventListener('close', syncModalBodyClass);
 
       function parseUrlParams() {
         var p = new URLSearchParams(window.location.search);
@@ -1201,7 +1248,6 @@
                     ? buyBtnHtml(price)
                     : '<button type="button" class="btn btn-card-buy js-details">Details</button>')) +
               '</div>' +
-              (!isFree ? videoPaypalActionsHtml(v.id) : '') +
             '</div>';
 
           el.setAttribute('aria-label', (v.title || 'Catalog item') + (isFree ? ', free' : ', ' + price.toFixed(2) + ' USD'));
@@ -1211,13 +1257,13 @@
             openDetails(v);
           });
           el.addEventListener('click', function (e) {
-            if (e.target.closest('a, button, video, .video-paypal-actions')) return;
+            if (e.target.closest('a, button, video')) return;
             openDetails(v);
           });
           var po = el.querySelector('.js-payopen');
           if (po) po.addEventListener('click', function (e) {
             e.stopPropagation();
-            startCheckout(v.price, null, v.title, v.id);
+            openVideoPayment(v);
           });
 
           g.appendChild(el);
@@ -1225,7 +1271,6 @@
 
         if (!isPlaceholder) {
           hydrateThumbs();
-          renderVideoPaypalButtons();
         }
       }
 
@@ -1286,14 +1331,10 @@
         var bp = d.querySelector('.js-dpay');
         if (bp) bp.addEventListener('click', function () {
           d.close();
-          startCheckout(v.price, null, v.title, v.id);
+          openVideoPayment(v);
         });
         d.showModal();
         syncModalBodyClass();
-      }
-
-      function openPay(v) {
-        startCheckout(v.price, null, v.title, v.id);
       }
 
       document.getElementById('dlg-details').addEventListener('close', syncModalBodyClass);
