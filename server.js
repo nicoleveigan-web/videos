@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { registerPayjsrRoutes } from './payjsr-checkout.js';
+import { registerPaypalRoutes } from './paypal-checkout.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -24,6 +25,17 @@ const TELEGRAM_USERNAME =
   process.env.TELEGRAM_USERNAME ||
   process.env.VITE_TELEGRAM_USERNAME ||
   '';
+const PAYPAL_CLIENT_ID = trimEnv('PAYPAL_CLIENT_ID');
+const PAYPAL_CHECKOUT_CONFIGURED = Boolean(PAYPAL_CLIENT_ID && trimEnv('PAYPAL_CLIENT_SECRET'));
+
+function escapeJsString(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/</g, '\\x3c')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
+}
 
 const supabaseUrl =
   process.env.SUPABASE_URL ||
@@ -266,6 +278,20 @@ registerPayjsrRoutes(app, {
   getTelegramUsername: resolveTelegramUsername,
 });
 
+registerPaypalRoutes(app, {
+  getAllVideosForBundle: async () => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, title, price, is_free, is_active, product_link')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+  getTelegramUsername: resolveTelegramUsername,
+});
+
 const SESSION_COOKIE = 'vv_admin';
 const SESSION_DAYS = 7;
 
@@ -431,6 +457,7 @@ app.get('/api/health', async (req, res) => {
     supabase: Boolean(supabase),
     ebooks_checkout_origin: Boolean(EBOOKS_SITE_URL),
     payjsr_configured: Boolean(trimEnv('PAYJSR_SECRET_KEY', 'PAYJSR_API_KEY')),
+    paypal_configured: Boolean(trimEnv('PAYPAL_CLIENT_ID') && trimEnv('PAYPAL_CLIENT_SECRET')),
     telegram: Boolean(String(TELEGRAM_USERNAME || '').trim()),
     wasabi_signed_urls: Boolean(w.signingReady),
     wasabi_from_env: Boolean(wasabiSecretFromEnv().signingReady),
@@ -706,7 +733,9 @@ async function renderHtmlTemplate(fileName) {
   return html
     .replace(/\{\{SITE_NAME\}\}/g, SITE_NAME)
     .replace(/\{\{TELEGRAM_USERNAME\}\}/g, telegram)
-    .replace(/\{\{EBOOKS_SITE_URL\}\}/g, EBOOKS_SITE_URL);
+    .replace(/\{\{EBOOKS_SITE_URL\}\}/g, EBOOKS_SITE_URL)
+    .replace(/\{\{PAYPAL_CLIENT_ID\}\}/g, escapeJsString(PAYPAL_CLIENT_ID))
+    .replace(/\{\{PAYPAL_ENABLED\}\}/g, PAYPAL_CHECKOUT_CONFIGURED ? 'true' : 'false');
 }
 
 app.get('/', async (req, res) => {

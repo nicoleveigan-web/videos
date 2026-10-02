@@ -243,6 +243,10 @@ body {
   border-color: #4cddbc; font-weight: 800; box-shadow: 0 8px 24px rgba(39, 214, 176, .15);
 }
 .promo-btn.primary:hover, .btn-primary:hover { color: #031e19; background: linear-gradient(135deg, #79f3d5, #32d3ae); border-color: #79f3d5; }
+.paypal-fallback { color: #15232a; background: #ffc439; border-color: #ffc439; font-weight: 800; }
+.paypal-fallback:hover { color: #15232a; background: #ffd36e; border-color: #ffd36e; }
+.paypal-fallback:disabled { cursor: progress; opacity: .75; }
+#paypal-button-container { width: 200px; min-height: 44px; }
 #promo-tg { color: #c1d2d0; }
 .trust-bar { color: #a9bebf; border-bottom-color: var(--stroke); gap: .75rem 1.5rem; }
 .trust-bar-item svg { fill: var(--primary); }

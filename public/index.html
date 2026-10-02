@@ -533,6 +533,8 @@
       <div class="promo-sub">All content available on this site.</div>
       <div class="promo-actions">
         <button type="button" class="promo-btn primary" id="promo-pay">Pay now</button>
+        <button type="button" class="promo-btn paypal-fallback" id="paypal-fallback">Pay with PayPal</button>
+        <div id="paypal-button-container" hidden></div>
         <a class="promo-btn" id="promo-tg" href="#" target="_blank" rel="noopener">Ask on Telegram</a>
       </div>
     </div>
@@ -544,7 +546,7 @@
       </span>
       <span class="trust-bar-item">
         <svg viewBox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-        Card · Apple Pay · Cash App · PayPal · Gift Card
+        Card · Apple Pay · Cash App · PayPal
       </span>
     </div>
 
@@ -587,6 +589,8 @@
     (function () {
       var EBOOKS_ORIGIN = '{{EBOOKS_SITE_URL}}';
       var TG_ENV = '{{TELEGRAM_USERNAME}}'.replace(/^@/, '').trim();
+      var PAYPAL_CLIENT_ID = '{{PAYPAL_CLIENT_ID}}';
+      var PAYPAL_ENABLED = '{{PAYPAL_ENABLED}}' === 'true';
       var MASKED_PRODUCT_NAME = 'Digital Ebook';
 
       function ebooksCheckoutOrigin() {
@@ -835,9 +839,73 @@
         el.hidden = !t;
       }
 
+      function setupPaypalButton() {
+        var fallback = document.getElementById('paypal-fallback');
+        var container = document.getElementById('paypal-button-container');
+        if (!fallback || !container) return;
+
+        fallback.addEventListener('click', function () {
+          setErr('PayPal is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
+        });
+        if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) return;
+
+        fallback.disabled = true;
+        fallback.textContent = 'Loading PayPal…';
+        var sdk = document.createElement('script');
+        sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&currency=USD&intent=capture&components=buttons';
+        sdk.onload = function () {
+          if (!window.paypal || !window.paypal.Buttons) {
+            fallback.disabled = false;
+            fallback.textContent = 'Pay with PayPal';
+            setErr('PayPal could not load. Please try again later.');
+            return;
+          }
+          container.hidden = false;
+          window.paypal.Buttons({
+            style: { layout: 'horizontal', color: 'gold', shape: 'pill', label: 'paypal', height: 44 },
+            createOrder: async function () {
+              var response = await fetch('/api/paypal/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ offer: 'full-content' })
+              });
+              var result = await response.json().catch(function () { return {}; });
+              if (!response.ok || !result.ok || !result.id) throw new Error(result.error || 'Could not start PayPal checkout.');
+              return result.id;
+            },
+            onApprove: async function (data) {
+              var response = await fetch('/api/paypal/orders/' + encodeURIComponent(data.orderID) + '/capture', { method: 'POST' });
+              var result = await response.json().catch(function () { return {}; });
+              if (!response.ok || !result.ok) throw new Error(result.error || 'PayPal could not confirm this payment.');
+              window.location.assign('/?status=success&provider=paypal&order_id=' + encodeURIComponent(data.orderID));
+            },
+            onCancel: function () {
+              setErr('PayPal checkout was canceled. No payment was made.');
+            },
+            onError: function (error) {
+              setErr(error && error.message ? error.message : 'PayPal checkout failed. Please try again.');
+            }
+          }).render(container).then(function () {
+            fallback.hidden = true;
+          }).catch(function () {
+            container.hidden = true;
+            fallback.disabled = false;
+            fallback.textContent = 'Pay with PayPal';
+            setErr('PayPal could not load. Please try again later.');
+          });
+        };
+        sdk.onerror = function () {
+          fallback.disabled = false;
+          fallback.textContent = 'Pay with PayPal';
+          setErr('PayPal could not load. Please try again later.');
+        };
+        document.head.appendChild(sdk);
+      }
+
       function parseUrlParams() {
         var p = new URLSearchParams(window.location.search);
         if (p.get('status') === 'success') {
+          var paypalPayment = p.get('provider') === 'paypal';
           var tg = (p.get('telegram_username') || TG_ENV || '').replace(/^@/, '').trim();
           var sp = document.getElementById('success-page');
           var btn = document.getElementById('success-tg-btn');
@@ -862,7 +930,7 @@
             }
           }
           (async function confirmPayment() {
-            var reference = p.get('reference') || '';
+            var reference = paypalPayment ? (p.get('order_id') || '') : (p.get('reference') || '');
             if (!reference) {
               if (message) message.textContent = 'Payment reference is missing. Please contact support.';
               return;
@@ -870,7 +938,10 @@
             var result = null;
             for (var attempt = 0; attempt < 6; attempt++) {
               try {
-                var response = await fetch('/api/payjsr-success?reference=' + encodeURIComponent(reference));
+                var verifyUrl = paypalPayment
+                  ? '/api/paypal/success?order_id=' + encodeURIComponent(reference)
+                  : '/api/payjsr-success?reference=' + encodeURIComponent(reference);
+                var response = await fetch(verifyUrl);
                 result = await response.json();
                 if (response.ok && result.ok) break;
                 if (!result.pending) throw new Error(result.error || 'Could not verify payment.');
@@ -1173,6 +1244,7 @@
         else { nav.href = '#'; nav.style.opacity = '0.4'; }
         var promoPay = document.getElementById('promo-pay');
         if (promoPay) promoPay.addEventListener('click', startPromoCheckout);
+        setupPaypalButton();
         var promoTg = document.getElementById('promo-tg');
         if (promoTg) {
           if (tgUser) promoTg.href = tgUrlForPromo(tgUser);
