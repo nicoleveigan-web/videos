@@ -279,6 +279,16 @@ registerPayjsrRoutes(app, {
 });
 
 registerPaypalRoutes(app, {
+  getVideoForCheckout: async (id) => {
+    if (!supabase) return null;
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, title, price, is_free, is_active, product_link')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
   getAllVideosForBundle: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase

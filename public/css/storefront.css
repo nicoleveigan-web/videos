@@ -247,6 +247,20 @@ body {
 .paypal-fallback:hover { color: #15232a; background: #ffd36e; border-color: #ffd36e; }
 .paypal-fallback:disabled { cursor: progress; opacity: .75; }
 #paypal-button-container { width: 200px; min-height: 44px; }
+.card-fallback { color: #17252d; background: #f7f9fb; border-color: #d4dce1; font-weight: 800; }
+.card-fallback:hover { color: #17252d; background: #e8eef2; border-color: #c1cdd4; }
+#paypal-card-button-container { width: 200px; min-height: 44px; }
+.video-paypal-actions { display: grid; gap: .35rem; margin-top: .4rem; }
+.video-paypal-choice { min-width: 0; width: 100%; }
+.video-paypal-target, .video-card-target { width: 100%; min-height: 34px; }
+.video-paypal-fallback, .video-card-fallback {
+  width: 100%; min-height: 34px; padding: .4rem .65rem; border-radius: 999px;
+  font: inherit; font-size: .7rem; font-weight: 800; cursor: pointer;
+}
+.video-paypal-fallback { color: #15232a; background: #ffc439; border: 1px solid #ffc439; }
+.video-paypal-fallback:hover { background: #ffd36e; border-color: #ffd36e; }
+.video-card-fallback { color: #17252d; background: #f7f9fb; border: 1px solid #d4dce1; }
+.video-card-fallback:hover { background: #e8eef2; border-color: #c1cdd4; }
 #promo-tg { color: #c1d2d0; }
 .trust-bar { color: #a9bebf; border-bottom-color: var(--stroke); gap: .75rem 1.5rem; }
 .trust-bar-item svg { fill: var(--primary); }

@@ -535,6 +535,8 @@
         <button type="button" class="promo-btn primary" id="promo-pay">Pay now</button>
         <button type="button" class="promo-btn paypal-fallback" id="paypal-fallback">Pay with PayPal</button>
         <div id="paypal-button-container" hidden></div>
+        <button type="button" class="promo-btn card-fallback" id="paypal-card-fallback">Debit or Credit Card</button>
+        <div id="paypal-card-button-container" hidden></div>
         <a class="promo-btn" id="promo-tg" href="#" target="_blank" rel="noopener">Ask on Telegram</a>
       </div>
     </div>
@@ -754,6 +756,13 @@
         );
       }
 
+      function videoPaypalActionsHtml(videoId) {
+        return '<div class="video-paypal-actions" data-video-paypal-id="' + escapeAttr(videoId) + '">' +
+          '<div class="video-paypal-choice"><button type="button" class="video-paypal-fallback paypal-unconfigured">Pay with PayPal</button><div class="video-paypal-target" hidden></div></div>' +
+          '<div class="video-paypal-choice"><button type="button" class="video-card-fallback paypal-unconfigured">Debit or Credit Card</button><div class="video-card-target" hidden></div></div>' +
+        '</div>';
+      }
+
       function cardDiscountPercent(v, price) {
         var raw = v.discount_percent ?? v.discount ?? v.sale_percent;
         var discount = Number(raw);
@@ -840,66 +849,116 @@
       }
 
       function setupPaypalButton() {
-        var fallback = document.getElementById('paypal-fallback');
-        var container = document.getElementById('paypal-button-container');
-        if (!fallback || !container) return;
+        var paypalFallback = document.getElementById('paypal-fallback');
+        var cardFallback = document.getElementById('paypal-card-fallback');
+        if (!paypalFallback || !cardFallback) return;
 
-        fallback.addEventListener('click', function () {
-          setErr('PayPal is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
+        document.addEventListener('click', function (event) {
+          if (event.target.closest('.paypal-unconfigured, #paypal-fallback, #paypal-card-fallback')) {
+            event.preventDefault();
+            event.stopPropagation();
+            setErr('PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
+          }
         });
         if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) return;
 
-        fallback.disabled = true;
-        fallback.textContent = 'Loading PayPal…';
+        [paypalFallback, cardFallback].forEach(function (button) {
+          button.disabled = true;
+          button.textContent = 'Loading PayPal…';
+        });
         var sdk = document.createElement('script');
-        sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&currency=USD&intent=capture&components=buttons';
+        sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&currency=USD&intent=capture&enable-funding=card&components=buttons,funding-eligibility&locale=en_US';
         sdk.onload = function () {
           if (!window.paypal || !window.paypal.Buttons) {
-            fallback.disabled = false;
-            fallback.textContent = 'Pay with PayPal';
+            [paypalFallback, cardFallback].forEach(function (button, index) {
+              button.disabled = false;
+              button.textContent = index ? 'Debit or Credit Card' : 'Pay with PayPal';
+            });
             setErr('PayPal could not load. Please try again later.');
             return;
           }
-          container.hidden = false;
-          window.paypal.Buttons({
-            style: { layout: 'horizontal', color: 'gold', shape: 'pill', label: 'paypal', height: 44 },
-            createOrder: async function () {
-              var response = await fetch('/api/paypal/orders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ offer: 'full-content' })
-              });
-              var result = await response.json().catch(function () { return {}; });
-              if (!response.ok || !result.ok || !result.id) throw new Error(result.error || 'Could not start PayPal checkout.');
-              return result.id;
-            },
-            onApprove: async function (data) {
-              var response = await fetch('/api/paypal/orders/' + encodeURIComponent(data.orderID) + '/capture', { method: 'POST' });
-              var result = await response.json().catch(function () { return {}; });
-              if (!response.ok || !result.ok) throw new Error(result.error || 'PayPal could not confirm this payment.');
-              window.location.assign('/?status=success&provider=paypal&order_id=' + encodeURIComponent(data.orderID));
-            },
-            onCancel: function () {
-              setErr('PayPal checkout was canceled. No payment was made.');
-            },
-            onError: function (error) {
-              setErr(error && error.message ? error.message : 'PayPal checkout failed. Please try again.');
-            }
-          }).render(container).then(function () {
-            fallback.hidden = true;
-          }).catch(function () {
-            container.hidden = true;
-            fallback.disabled = false;
-            fallback.textContent = 'Pay with PayPal';
-            setErr('PayPal could not load. Please try again later.');
-          });
+          window.paypalSdkReady = true;
+          renderPromoPaypalButtons();
+          renderVideoPaypalButtons();
         };
         sdk.onerror = function () {
-          fallback.disabled = false;
-          fallback.textContent = 'Pay with PayPal';
+          [paypalFallback, cardFallback].forEach(function (button, index) {
+            button.disabled = false;
+            button.textContent = index ? 'Debit or Credit Card' : 'Pay with PayPal';
+          });
           setErr('PayPal could not load. Please try again later.');
         };
         document.head.appendChild(sdk);
+      }
+
+      function paypalButtonOptions(videoId) {
+        return {
+          createOrder: async function () {
+            var body = videoId ? { video_id: videoId } : { offer: 'full-content' };
+            var response = await fetch('/api/paypal/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            var result = await response.json().catch(function () { return {}; });
+            if (!response.ok || !result.ok || !result.id) throw new Error(result.error || 'Could not start PayPal checkout.');
+            return result.id;
+          },
+          onApprove: async function (data) {
+            var response = await fetch('/api/paypal/orders/' + encodeURIComponent(data.orderID) + '/capture', { method: 'POST' });
+            var result = await response.json().catch(function () { return {}; });
+            if (!response.ok || !result.ok) throw new Error(result.error || 'PayPal could not confirm this payment.');
+            window.location.assign('/?status=success&provider=paypal&order_id=' + encodeURIComponent(data.orderID));
+          },
+          onCancel: function () { setErr('PayPal checkout was canceled. No payment was made.'); },
+          onError: function (error) { setErr(error && error.message ? error.message : 'PayPal checkout failed. Please try again.'); }
+        };
+      }
+
+      function renderPaypalFundingButton(fundingSource, target, fallback, videoId) {
+        if (!window.paypalSdkReady || !target || !fallback) return;
+        var style = { layout: 'horizontal', shape: 'pill', height: 36 };
+        if (fundingSource === window.paypal.FUNDING.PAYPAL) {
+          style.color = 'gold';
+          style.label = 'paypal';
+        }
+        var button = window.paypal.Buttons(Object.assign(
+          { fundingSource: fundingSource, style: style }, paypalButtonOptions(videoId)
+        ));
+        if (!button.isEligible()) {
+          target.hidden = true;
+          fallback.hidden = true;
+          return;
+        }
+        target.hidden = false;
+        button.render(target).then(function () {
+          fallback.hidden = true;
+        }).catch(function () {
+          target.hidden = true;
+          fallback.hidden = false;
+          fallback.disabled = false;
+          fallback.textContent = fundingSource === window.paypal.FUNDING.CARD ? 'Debit or Credit Card' : 'Pay with PayPal';
+        });
+      }
+
+      function renderPromoPaypalButtons() {
+        if (!window.paypalSdkReady) return;
+        renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
+          document.getElementById('paypal-button-container'), document.getElementById('paypal-fallback'), '');
+        renderPaypalFundingButton(window.paypal.FUNDING.CARD,
+          document.getElementById('paypal-card-button-container'), document.getElementById('paypal-card-fallback'), '');
+      }
+
+      function renderVideoPaypalButtons() {
+        if (!window.paypalSdkReady) return;
+        document.querySelectorAll('.video-paypal-actions:not([data-rendered])').forEach(function (group) {
+          group.setAttribute('data-rendered', 'true');
+          var videoId = group.getAttribute('data-video-paypal-id') || '';
+          renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
+            group.querySelector('.video-paypal-target'), group.querySelector('.video-paypal-fallback'), videoId);
+          renderPaypalFundingButton(window.paypal.FUNDING.CARD,
+            group.querySelector('.video-card-target'), group.querySelector('.video-card-fallback'), videoId);
+        });
       }
 
       function parseUrlParams() {
@@ -1127,6 +1186,7 @@
                     ? buyBtnHtml(price)
                     : '<button type="button" class="btn btn-card-buy js-details">Details</button>')) +
               '</div>' +
+              (!isFree ? videoPaypalActionsHtml(v.id) : '') +
             '</div>';
 
           el.setAttribute('aria-label', (v.title || 'Catalog item') + (isFree ? ', free' : ', ' + price.toFixed(2) + ' USD'));
@@ -1136,7 +1196,7 @@
             openDetails(v);
           });
           el.addEventListener('click', function (e) {
-            if (e.target.closest('a, button, video')) return;
+            if (e.target.closest('a, button, video, .video-paypal-actions')) return;
             openDetails(v);
           });
           var po = el.querySelector('.js-payopen');
@@ -1150,6 +1210,7 @@
 
         if (!isPlaceholder) {
           hydrateThumbs();
+          renderVideoPaypalButtons();
         }
       }
 

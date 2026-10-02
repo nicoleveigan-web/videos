@@ -54,42 +54,55 @@ async function paypalRequest(path, options = {}) {
   return payload;
 }
 
-function isFullContentOrder(order) {
-  if (order?.status !== 'COMPLETED') return false;
-  const purchaseUnit = Array.isArray(order.purchase_units)
-    ? order.purchase_units.find((unit) => unit.custom_id === 'full-content-v1')
-    : null;
-  const amount = purchaseUnit?.payments?.captures?.find((capture) => capture.status === 'COMPLETED')?.amount;
-  return Boolean(
-    amount &&
-    amount.currency_code === 'USD' &&
-    Number(amount.value).toFixed(2) === BUNDLE_PRICE
-  );
-}
-
-function hasFullContentPurchaseUnit(order) {
+function getPurchaseUnit(order) {
   const purchaseUnit = Array.isArray(order?.purchase_units)
-    ? order.purchase_units.find((unit) => unit.custom_id === 'full-content-v1')
+    ? order.purchase_units.find((unit) => unit.custom_id === 'full-content-v1' || /^video:.+/.test(String(unit.custom_id || '')))
     : null;
-  return Boolean(
-    purchaseUnit &&
-    purchaseUnit.amount?.currency_code === 'USD' &&
-    Number(purchaseUnit.amount.value).toFixed(2) === BUNDLE_PRICE
-  );
+  const amount = Number(purchaseUnit?.amount?.value);
+  if (!purchaseUnit || purchaseUnit.amount?.currency_code !== 'USD' || !Number.isFinite(amount) || amount <= 0) return null;
+  if (purchaseUnit.custom_id === 'full-content-v1' && amount.toFixed(2) !== BUNDLE_PRICE) return null;
+  const completedCapture = purchaseUnit.payments?.captures?.find((capture) => capture.status === 'COMPLETED');
+  if (completedCapture && (
+    completedCapture.amount?.currency_code !== 'USD' ||
+    Number(completedCapture.amount?.value).toFixed(2) !== amount.toFixed(2)
+  )) return null;
+  return { purchaseUnit, amount, completedCapture };
 }
 
-export function registerPaypalRoutes(app, { getAllVideosForBundle, getTelegramUsername }) {
+export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosForBundle, getTelegramUsername }) {
   app.post('/api/paypal/orders', async (req, res) => {
     try {
       if (!paypalConfig().configured) {
         return res.status(503).json({ ok: false, error: 'PayPal is not configured. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.' });
       }
-      if (typeof getAllVideosForBundle !== 'function') {
-        return res.status(503).json({ ok: false, error: 'The full-content offer is not configured.' });
-      }
-      const videos = await getAllVideosForBundle();
-      if (!videos.some((video) => !video.is_free && Number(video.price) > 0)) {
-        return res.status(404).json({ ok: false, error: 'The full-content offer is not available.' });
+      const videoId = String(req.body?.video_id || '').trim();
+      let purchaseUnit;
+      if (videoId) {
+        if (typeof getVideoForCheckout !== 'function') {
+          return res.status(503).json({ ok: false, error: 'Video checkout is not configured.' });
+        }
+        const video = await getVideoForCheckout(videoId);
+        if (!video || !video.is_active || video.is_free || !(Number(video.price) > 0)) {
+          return res.status(404).json({ ok: false, error: 'This video is unavailable for purchase.' });
+        }
+        purchaseUnit = {
+          custom_id: `video:${video.id}`,
+          description: String(video.title || 'Video').slice(0, 127),
+          amount: { currency_code: 'USD', value: Number(video.price).toFixed(2) },
+        };
+      } else {
+        if (typeof getAllVideosForBundle !== 'function') {
+          return res.status(503).json({ ok: false, error: 'The full-content offer is not configured.' });
+        }
+        const videos = await getAllVideosForBundle();
+        if (!videos.some((video) => !video.is_free && Number(video.price) > 0)) {
+          return res.status(404).json({ ok: false, error: 'The full-content offer is not available.' });
+        }
+        purchaseUnit = {
+          custom_id: 'full-content-v1',
+          description: 'Full Content — all content available on this site',
+          amount: { currency_code: 'USD', value: BUNDLE_PRICE },
+        };
       }
 
       const order = await paypalRequest('/v2/checkout/orders', {
@@ -97,11 +110,7 @@ export function registerPaypalRoutes(app, { getAllVideosForBundle, getTelegramUs
         headers: { 'PayPal-Request-Id': crypto.randomUUID() },
         body: JSON.stringify({
           intent: 'CAPTURE',
-          purchase_units: [{
-            custom_id: 'full-content-v1',
-            description: 'Full Content — all content available on this site',
-            amount: { currency_code: 'USD', value: BUNDLE_PRICE },
-          }],
+          purchase_units: [purchaseUnit],
         }),
       });
       if (!order.id || order.status !== 'CREATED') {
@@ -121,8 +130,8 @@ export function registerPaypalRoutes(app, { getAllVideosForBundle, getTelegramUs
         return res.status(400).json({ ok: false, error: 'Invalid PayPal order ID.' });
       }
       const orderBeforeCapture = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { method: 'GET' });
-      if (orderBeforeCapture.status !== 'APPROVED' || !hasFullContentPurchaseUnit(orderBeforeCapture)) {
-        return res.status(400).json({ ok: false, error: 'This PayPal order is not an approved Full Content purchase.' });
+      if (orderBeforeCapture.status !== 'APPROVED' || !getPurchaseUnit(orderBeforeCapture)) {
+        return res.status(400).json({ ok: false, error: 'This PayPal order is not an approved purchase.' });
       }
       const capture = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
         method: 'POST',
@@ -146,18 +155,33 @@ export function registerPaypalRoutes(app, { getAllVideosForBundle, getTelegramUs
         return res.status(400).json({ ok: false, error: 'Invalid PayPal order ID.' });
       }
       const order = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { method: 'GET' });
-      if (!isFullContentOrder(order)) {
+      const verified = getPurchaseUnit(order);
+      if (order.status !== 'COMPLETED' || !verified?.completedCapture) {
         return res.status(402).json({ ok: false, pending: true, error: 'PayPal payment is not confirmed yet.' });
       }
-      const capture = order.purchase_units
-        .find((unit) => unit.custom_id === 'full-content-v1')
-        .payments.captures.find((item) => item.status === 'COMPLETED');
+      let title = verified.purchaseUnit.description || 'Your purchase';
+      let productLink = '';
+      if (verified.purchaseUnit.custom_id === 'full-content-v1') {
+        title = 'Full Content';
+      } else {
+        const videoId = verified.purchaseUnit.custom_id.slice('video:'.length);
+        const video = typeof getVideoForCheckout === 'function' ? await getVideoForCheckout(videoId) : null;
+        if (video) {
+          title = video.title || title;
+          const currentPriceMatches = Number(video.price).toFixed(2) === Number(verified.amount).toFixed(2);
+          if (video.is_active && !video.is_free && currentPriceMatches) {
+            const candidateLink = String(video.product_link || '').trim();
+            if (/^https?:\/\//i.test(candidateLink)) productLink = candidateLink;
+          }
+        }
+      }
       res.json({
         ok: true,
-        title: 'Full Content',
-        amount: capture.amount.value,
-        currency: capture.amount.currency_code,
-        delivery_via_telegram: true,
+        title,
+        amount: verified.completedCapture.amount.value,
+        currency: verified.completedCapture.amount.currency_code,
+        product_link: productLink,
+        delivery_via_telegram: !productLink,
         telegram_username: typeof getTelegramUsername === 'function' ? await getTelegramUsername() : '',
       });
     } catch (error) {
