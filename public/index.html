@@ -826,14 +826,7 @@
       }
 
       function startPromoCheckout() {
-        var target = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
-        var message = telegramInterestMessage('ALL CONTENT', 150);
-        var encodedMessage = encodeURIComponent(message);
-        if (target) {
-          window.location.assign('https://t.me/' + target + '?text=' + encodedMessage);
-          return;
-        }
-        setErr('Telegram support is not configured yet. Please try again later.');
+        window.location.assign('/api/payjsr-checkout?bundle=all&currency=USD');
       }
 
       function setErr(t) {
