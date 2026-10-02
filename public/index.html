@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{SITE_NAME}}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --primary: #ff2d55;
@@ -504,8 +504,8 @@
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div id="success-page">
     <div class="success-card">
-      <div class="success-spinner" aria-hidden="true"></div>
-      <h2>Access ready</h2>
+      <div id="success-spinner" class="success-spinner" aria-hidden="true"></div>
+      <h2 id="success-heading">Payment confirmed</h2>
       <p id="success-message">We’re confirming your payment…</p>
       <a id="success-tg-btn" class="btn-success-tg" href="#" target="_blank" rel="noopener" hidden>Open my content</a>
     </div>
@@ -529,15 +529,11 @@
 
   <main class="container" id="main-content">
     <div class="promo-banner">
-      <div class="promo-title">All content &amp; folders for just $150</div>
-      <div class="promo-sub">Everything currently listed on this site. Access after payment confirmation.</div>
-      <div class="promo-countdown" role="timer" aria-live="polite" aria-label="Promotion ends in">
-        <span class="promo-countdown-label">Offer ends in</span>
-        <strong id="promo-countdown">30:00</strong>
-      </div>
+      <div class="promo-title">The full library for $150</div>
+      <div class="promo-sub">Pay online, or ask us directly on Telegram about the full library.</div>
       <div class="promo-actions">
-        <button type="button" class="promo-btn primary" id="promo-pay">Request Access</button>
-        <a class="promo-btn" id="promo-tg" href="#" target="_blank" rel="noopener">Need help?</a>
+        <button type="button" class="promo-btn primary" id="promo-pay">Pay now</button>
+        <a class="promo-btn" id="promo-tg" href="#" target="_blank" rel="noopener">Ask on Telegram</a>
       </div>
     </div>
 
@@ -824,81 +820,20 @@
         return 'https://t.me/share/url?url=&text=' + enc;
       }
 
-      var PROMO_TIMER_KEY = 'videos-site-promo-expires-at-v1';
-      var PROMO_DURATION_MS = 30 * 60 * 1000;
-      var promoExpiresAt = 0;
-      var promoTimer = null;
-
-      function promoStorageRead() {
-        try {
-          var raw = Number(window.localStorage.getItem(PROMO_TIMER_KEY));
-          return Number.isFinite(raw) && raw > 0 ? raw : 0;
-        } catch (e) {
-          return 0;
-        }
-      }
-
-      function promoStorageWrite(value) {
-        try { window.localStorage.setItem(PROMO_TIMER_KEY, String(value)); } catch (e) {}
-      }
-
-      function formatPromoTime(ms) {
-        var totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-        var minutes = Math.floor(totalSeconds / 60);
-        var seconds = totalSeconds % 60;
-        return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-      }
-
-      function updatePromoCountdown() {
-        var countdown = document.getElementById('promo-countdown');
-        if (!countdown || !promoExpiresAt) return;
-        var remaining = Math.max(0, promoExpiresAt - Date.now());
-        countdown.textContent = formatPromoTime(remaining);
-        countdown.parentElement.setAttribute('aria-label', remaining ? 'Promotion ends in ' + formatPromoTime(remaining) : 'Promotion ended');
-        if (remaining > 0) return;
-
-        countdown.textContent = '00:00';
-        countdown.parentElement.classList.add('is-expired');
-        var promoPay = document.getElementById('promo-pay');
-        if (promoPay) {
-          promoPay.disabled = true;
-          promoPay.textContent = 'Promotion ended';
-        }
-        if (promoTimer) {
-          clearInterval(promoTimer);
-          promoTimer = null;
-        }
-      }
-
-      function initPromoCountdown() {
-        var stored = promoStorageRead();
-        if (stored) {
-          promoExpiresAt = stored;
-        } else {
-          promoExpiresAt = Date.now() + PROMO_DURATION_MS;
-          promoStorageWrite(promoExpiresAt);
-        }
-        updatePromoCountdown();
-        if (promoExpiresAt > Date.now()) {
-          promoTimer = setInterval(updatePromoCountdown, 1000);
-        }
-      }
-
       function startCheckout(price, maskedName, displayTitle, videoId) {
         var targetUrl = checkoutUrl(price, maskedName, displayTitle, videoId, 'payjsr');
         if (targetUrl) window.location.assign(targetUrl);
       }
 
       function startPromoCheckout() {
-        if (promoExpiresAt && promoExpiresAt <= Date.now()) {
-          updatePromoCountdown();
+        var target = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
+        var message = telegramInterestMessage('ALL CONTENT', 150);
+        var encodedMessage = encodeURIComponent(message);
+        if (target) {
+          window.location.assign('https://t.me/' + target + '?text=' + encodedMessage);
           return;
         }
-        var msg = telegramInterestMessage('ALL CONTENT', 150);
-        var enc = encodeURIComponent(msg);
-        var target = (tgUser || TG_ENV || '').replace(/^@/, '').trim();
-        var url = target ? 'https://t.me/' + target + '?text=' + enc : 'https://t.me/share/url?url=&text=' + enc;
-        window.open(url, '_blank', 'noopener');
+        setErr('Telegram support is not configured yet. Please try again later.');
       }
 
       function setErr(t) {
@@ -914,7 +849,25 @@
           var sp = document.getElementById('success-page');
           var btn = document.getElementById('success-tg-btn');
           var message = document.getElementById('success-message');
+          var heading = document.getElementById('success-heading');
+          var spinner = document.getElementById('success-spinner');
           if (sp) sp.classList.add('active');
+          function showTelegramRequest(result, paymentReference) {
+            var amount = result.amount != null && result.amount !== '' ? result.amount : (p.get('amount') || '');
+            var currency = result.currency || 'USD';
+            var lines = [
+              'Hello, I just paid for ' + (result.title || 'my purchase') + '.',
+              amount !== '' ? 'Amount: ' + amount + ' ' + currency + '.' : '',
+              'Payment reference: ' + paymentReference + '.',
+              'Please send me access to my purchase.'
+            ].filter(Boolean).join('\n');
+            var contact = String(result.telegram_username || tg || '').replace(/^@/, '').trim();
+            if (btn) {
+              btn.href = contact ? 'https://t.me/' + contact + '?text=' + encodeURIComponent(lines) : 'https://t.me/share/url?url=&text=' + encodeURIComponent(lines);
+              btn.textContent = 'Ask on Telegram';
+              btn.hidden = false;
+            }
+          }
           (async function confirmPayment() {
             var reference = p.get('reference') || '';
             if (!reference) {
@@ -938,6 +891,12 @@
               if (message) message.textContent = 'Payment is still being confirmed. Refresh this page in a moment or contact support.';
               return;
             }
+            if (spinner) spinner.hidden = true;
+            if (result.delivery_via_telegram) {
+              if (message) message.textContent = 'Your payment for the full library is confirmed. Ask us on Telegram to receive your access.';
+              showTelegramRequest(result, reference);
+              return;
+            }
             if (result.product_link) {
               if (message) message.textContent = 'Payment confirmed. Your product is ready.';
               if (btn) {
@@ -948,13 +907,9 @@
               setTimeout(function () { window.location.assign(result.product_link); }, 1200);
               return;
             }
-            if (message) message.textContent = 'Payment confirmed. Contact us on Telegram to receive your product.';
-            if (btn) {
-              var lines = ['Hello, my payment was confirmed.', 'Product: ' + (result.title || 'Purchase'), 'Reference: ' + reference].join('\n');
-              btn.href = tg ? 'https://t.me/' + tg + '?text=' + encodeURIComponent(lines) : 'https://t.me/share/url?url=&text=' + encodeURIComponent(lines);
-              btn.textContent = 'Message us on Telegram';
-              btn.hidden = false;
-            }
+            if (heading) heading.textContent = 'Payment confirmed';
+            if (message) message.textContent = 'Your payment for ' + (result.title || 'your purchase') + ' is confirmed. Ask us on Telegram and we’ll send your access.';
+            showTelegramRequest(result, reference);
           })();
           return;
         }
@@ -1230,8 +1185,6 @@
           if (tgUser) promoTg.href = tgUrlForPromo(tgUser);
           else { promoTg.href = '#'; promoTg.style.opacity = '0.4'; }
         }
-        initPromoCountdown();
-
         var idsRes = await fetch('/api/video-ids');
         var idsJs = idsRes.ok ? await idsRes.json() : { ids: [] };
         var ids = shuffle(idsJs.ids || []);

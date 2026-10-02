@@ -333,7 +333,7 @@ function sendPayJSRCheckoutPage(res, payload) {
 </html>`);
 }
 
-export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTelegramUsername }) {
+export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAllVideosForBundle, getTelegramUsername }) {
   app.get('/api/payjsr-fx', async (req, res) => {
     try {
       const from = normalizeCurrencyCode(req.query.from, PAYJSR_CHECKOUT_CURRENCY);
@@ -356,15 +356,29 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTe
   async function handleCheckout(req, res) {
     try {
       const q = req.query;
+      const isBundle = String(q.bundle || '').toLowerCase() === 'all';
       const videoId = String(q.video_id || '').trim();
-      if (!videoId || typeof getVideoForCheckout !== 'function') {
+      if ((!videoId && !isBundle) || (!isBundle && typeof getVideoForCheckout !== 'function')) {
         return res.status(400).send('Missing video. Please return to the store and try again.');
       }
-      const video = await getVideoForCheckout(videoId);
-      if (!video || !video.is_active || video.is_free || !(Number(video.price) > 0)) {
-        return res.status(404).send('This video is unavailable for purchase.');
+      let video = null;
+      let bundleProducts = [];
+      if (isBundle) {
+        if (typeof getAllVideosForBundle !== 'function') {
+          return res.status(503).send('The all-content package is not configured.');
+        }
+        bundleProducts = await getAllVideosForBundle();
+        const paidProducts = bundleProducts.filter((item) => !item.is_free && Number(item.price) > 0);
+        if (!paidProducts.length) {
+          return res.status(404).send('The all-content package is not available.');
+        }
+      } else {
+        video = await getVideoForCheckout(videoId);
+        if (!video || !video.is_active || video.is_free || !(Number(video.price) > 0)) {
+          return res.status(404).send('This video is unavailable for purchase.');
+        }
       }
-      const amountNumber = Number(video.price);
+      const amountNumber = isBundle ? 150 : Number(video.price);
       if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
         return res.status(400).send('Missing or invalid amount');
       }
@@ -379,7 +393,7 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTe
       }
 
       const masked = String(q.product_name || 'Digital Ebook').trim() || 'Digital Ebook';
-      const real = String(video.title || q.display_title || masked).trim();
+      const real = isBundle ? 'All videos and folders' : String(video.title || q.display_title || masked).trim();
       const canceled = String(q.payment_canceled || '').toLowerCase() === 'true';
       const wantJson =
         String(q.format || '').toLowerCase() === 'json' ||
@@ -407,7 +421,9 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTe
             name: masked.slice(0, 120),
             success_url: successUrl,
             reference,
-            metadata: { video_id: videoId, display_title: real.slice(0, 500) },
+            metadata: isBundle
+              ? { bundle: 'all', display_title: real.slice(0, 500) }
+              : { video_id: videoId, display_title: real.slice(0, 500), delivery_url: String(video.product_link).trim() },
           }),
         });
       } catch (err) {
@@ -487,13 +503,24 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTe
       if (!session || session.status !== 'complete') {
         return res.status(402).json({ ok: false, pending: true, error: 'Payment is not confirmed yet.' });
       }
+      if (String(session.metadata?.bundle || '').toLowerCase() === 'all') {
+        return res.json({
+          ok: true,
+          title: 'All videos and folders',
+          amount: session.amount,
+          currency: session.currency,
+          delivery_via_telegram: true,
+          telegram_username: typeof getTelegramUsername === 'function' ? await getTelegramUsername() : '',
+        });
+      }
+
       const videoId = String(session.metadata?.video_id || '').trim();
       if (!videoId || typeof getVideoForCheckout !== 'function') {
         return res.status(404).json({ ok: false, error: 'Purchased product was not found.' });
       }
       const video = await getVideoForCheckout(videoId);
       if (!video) return res.status(404).json({ ok: false, error: 'Purchased product was not found.' });
-      const productLink = String(video.product_link || '').trim();
+      const productLink = String(session.metadata?.delivery_url || video.product_link || '').trim();
       const safeProductLink = /^https?:\/\//i.test(productLink) ? productLink : '';
       res.json({
         ok: true,
@@ -501,6 +528,7 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getTe
         amount: session.amount,
         currency: session.currency,
         product_link: safeProductLink,
+        delivery_pending: !safeProductLink,
         telegram_username: typeof getTelegramUsername === 'function' ? await getTelegramUsername() : '',
       });
     } catch (err) {

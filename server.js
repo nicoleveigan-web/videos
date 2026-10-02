@@ -253,6 +253,16 @@ registerPayjsrRoutes(app, {
     if (error) throw error;
     return data;
   },
+  getAllVideosForBundle: async () => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, title, price, is_free, is_active, product_link')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
   getTelegramUsername: resolveTelegramUsername,
 });
 
