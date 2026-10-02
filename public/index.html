@@ -533,10 +533,12 @@
       <div class="promo-sub">All content available on this site.</div>
       <div class="promo-actions">
         <button type="button" class="promo-btn primary" id="promo-pay">Pay now</button>
-        <button type="button" class="promo-btn paypal-fallback" id="paypal-fallback">Pay with PayPal</button>
-        <div id="paypal-button-container" hidden></div>
-        <button type="button" class="promo-btn card-fallback" id="paypal-card-fallback">Debit or Credit Card</button>
-        <div id="paypal-card-button-container" hidden></div>
+        <div class="promo-paypal-group" id="promo-paypal-group">
+          <button type="button" class="promo-btn paypal-fallback" id="paypal-fallback">Pay with PayPal</button>
+          <div id="paypal-button-container" hidden></div>
+          <button type="button" class="promo-btn card-fallback" id="paypal-card-fallback">Debit or Credit Card</button>
+          <div id="paypal-card-button-container" hidden></div>
+        </div>
         <a class="promo-btn" id="promo-tg" href="#" target="_blank" rel="noopener">Ask on Telegram</a>
       </div>
     </div>
@@ -607,10 +609,6 @@
         return MASKED_PRODUCT_NAME;
       }
 
-      function shuffle(arr) {
-        return (arr || []).slice();
-      }
-
       function orderVideosForGrid(videos) {
         var list = (videos || []).slice();
         if (list.length <= 1) return list;
@@ -627,6 +625,10 @@
         var first = top.length ? top[0] : paid[0];
         var rest = list.filter(function (v) { return v.id !== first.id; });
         return [first].concat(rest);
+      }
+
+      function shuffle(arr) {
+        return (arr || []).slice();
       }
 
       function normalizeOrigin(u) {
@@ -757,10 +759,12 @@
       }
 
       function videoPaypalActionsHtml(videoId) {
-        return '<div class="video-paypal-actions" data-video-paypal-id="' + escapeAttr(videoId) + '">' +
-          '<div class="video-paypal-choice"><button type="button" class="video-paypal-fallback paypal-unconfigured">Pay with PayPal</button><div class="video-paypal-target" hidden></div></div>' +
-          '<div class="video-paypal-choice"><button type="button" class="video-card-fallback paypal-unconfigured">Debit or Credit Card</button><div class="video-card-target" hidden></div></div>' +
-        '</div>';
+        var loadingClass = PAYPAL_ENABLED && PAYPAL_CLIENT_ID ? ' paypal-loading' : '';
+        var pendingAttr = loadingClass ? ' hidden' : '';
+        return '<div class="video-paypal-actions' + loadingClass + '" data-video-paypal-id="' + escapeAttr(videoId) + '">' +
+          '<div class="video-paypal-choice"><button type="button" class="video-paypal-fallback paypal-unconfigured"' + pendingAttr + '>Pay with PayPal</button><div class="video-paypal-target" hidden></div></div>' +
+          '<div class="video-paypal-choice"><button type="button" class="video-card-fallback paypal-unconfigured"' + pendingAttr + '>Debit or Credit Card</button><div class="video-card-target" hidden></div></div>' +
+          '</div>';
       }
 
       function cardDiscountPercent(v, price) {
@@ -851,29 +855,26 @@
       function setupPaypalButton() {
         var paypalFallback = document.getElementById('paypal-fallback');
         var cardFallback = document.getElementById('paypal-card-fallback');
+        var promoGroup = document.getElementById('promo-paypal-group');
         if (!paypalFallback || !cardFallback) return;
 
         document.addEventListener('click', function (event) {
           if (event.target.closest('.paypal-unconfigured, #paypal-fallback, #paypal-card-fallback')) {
             event.preventDefault();
             event.stopPropagation();
-            setErr('PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
+            setErr(PAYPAL_ENABLED
+              ? 'PayPal is still loading. Please try again in a moment.'
+              : 'PayPal checkout is not configured yet. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to the server environment.');
           }
         });
         if (!PAYPAL_ENABLED || !PAYPAL_CLIENT_ID) return;
+        if (promoGroup) promoGroup.classList.add('paypal-loading');
 
-        [paypalFallback, cardFallback].forEach(function (button) {
-          button.disabled = true;
-          button.textContent = 'Loading PayPal…';
-        });
         var sdk = document.createElement('script');
         sdk.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(PAYPAL_CLIENT_ID) + '&currency=USD&intent=capture&enable-funding=card&components=buttons,funding-eligibility&locale=en_US';
         sdk.onload = function () {
           if (!window.paypal || !window.paypal.Buttons) {
-            [paypalFallback, cardFallback].forEach(function (button, index) {
-              button.disabled = false;
-              button.textContent = index ? 'Debit or Credit Card' : 'Pay with PayPal';
-            });
+            revealPaypalFallbacks();
             setErr('PayPal could not load. Please try again later.');
             return;
           }
@@ -882,13 +883,19 @@
           renderVideoPaypalButtons();
         };
         sdk.onerror = function () {
-          [paypalFallback, cardFallback].forEach(function (button, index) {
-            button.disabled = false;
-            button.textContent = index ? 'Debit or Credit Card' : 'Pay with PayPal';
-          });
+          revealPaypalFallbacks();
           setErr('PayPal could not load. Please try again later.');
         };
         document.head.appendChild(sdk);
+      }
+
+      function revealPaypalFallbacks() {
+        document.querySelectorAll('.paypal-loading').forEach(function (group) {
+          group.classList.remove('paypal-loading');
+        });
+        document.querySelectorAll('.paypal-fallback, .video-paypal-fallback, .video-card-fallback, #paypal-card-fallback').forEach(function (button) {
+          button.hidden = false;
+        });
       }
 
       function paypalButtonOptions(videoId) {
@@ -916,7 +923,7 @@
       }
 
       function renderPaypalFundingButton(fundingSource, target, fallback, videoId) {
-        if (!window.paypalSdkReady || !target || !fallback) return;
+        if (!window.paypalSdkReady || !target || !fallback) return Promise.resolve();
         var style = { layout: 'horizontal', shape: 'pill', height: 36 };
         if (fundingSource === window.paypal.FUNDING.PAYPAL) {
           style.color = 'gold';
@@ -928,25 +935,31 @@
         if (!button.isEligible()) {
           target.hidden = true;
           fallback.hidden = true;
-          return;
+          return Promise.resolve();
         }
         target.hidden = false;
-        button.render(target).then(function () {
+        target.classList.add('paypal-rendering');
+        return button.render(target).then(function () {
+          target.classList.remove('paypal-rendering');
           fallback.hidden = true;
         }).catch(function () {
+          target.classList.remove('paypal-rendering');
           target.hidden = true;
           fallback.hidden = false;
-          fallback.disabled = false;
-          fallback.textContent = fundingSource === window.paypal.FUNDING.CARD ? 'Debit or Credit Card' : 'Pay with PayPal';
         });
       }
 
       function renderPromoPaypalButtons() {
         if (!window.paypalSdkReady) return;
-        renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
-          document.getElementById('paypal-button-container'), document.getElementById('paypal-fallback'), '');
-        renderPaypalFundingButton(window.paypal.FUNDING.CARD,
-          document.getElementById('paypal-card-button-container'), document.getElementById('paypal-card-fallback'), '');
+        var group = document.getElementById('promo-paypal-group');
+        Promise.all([
+          renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
+            document.getElementById('paypal-button-container'), document.getElementById('paypal-fallback'), ''),
+          renderPaypalFundingButton(window.paypal.FUNDING.CARD,
+            document.getElementById('paypal-card-button-container'), document.getElementById('paypal-card-fallback'), '')
+        ]).then(function () {
+          if (group) group.classList.remove('paypal-loading');
+        });
       }
 
       function renderVideoPaypalButtons() {
@@ -954,10 +967,12 @@
         document.querySelectorAll('.video-paypal-actions:not([data-rendered])').forEach(function (group) {
           group.setAttribute('data-rendered', 'true');
           var videoId = group.getAttribute('data-video-paypal-id') || '';
-          renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
-            group.querySelector('.video-paypal-target'), group.querySelector('.video-paypal-fallback'), videoId);
-          renderPaypalFundingButton(window.paypal.FUNDING.CARD,
-            group.querySelector('.video-card-target'), group.querySelector('.video-card-fallback'), videoId);
+          Promise.all([
+            renderPaypalFundingButton(window.paypal.FUNDING.PAYPAL,
+              group.querySelector('.video-paypal-target'), group.querySelector('.video-paypal-fallback'), videoId),
+            renderPaypalFundingButton(window.paypal.FUNDING.CARD,
+              group.querySelector('.video-card-target'), group.querySelector('.video-card-fallback'), videoId)
+          ]).then(function () { group.classList.remove('paypal-loading'); });
         });
       }
 
@@ -1156,7 +1171,7 @@
           }
 
           el.innerHTML =
-            '<div class="vcard-media">' +
+              '<div class="vcard-media">' +
               '<div class="vcard-media-inner js-inner">' +
                 '<div class="skel js-skel"></div>' +
                 '<video class="js-thumb" muted playsinline preload="metadata" aria-hidden="true" style="display:none"></video>' +
@@ -1305,7 +1320,6 @@
         else { nav.href = '#'; nav.style.opacity = '0.4'; }
         var promoPay = document.getElementById('promo-pay');
         if (promoPay) promoPay.addEventListener('click', startPromoCheckout);
-        setupPaypalButton();
         var promoTg = document.getElementById('promo-tg');
         if (promoTg) {
           if (tgUser) promoTg.href = tgUrlForPromo(tgUser);
@@ -1331,6 +1345,7 @@
         renderGrid(allVideos, false);
       }
 
+      setupPaypalButton();
       boot().catch(function (e) {
         setErr((e && e.message) || 'Catalog failed to load');
         document.getElementById('hydrate-chip').hidden = true;

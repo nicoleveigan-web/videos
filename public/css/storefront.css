@@ -250,6 +250,9 @@ body {
 .card-fallback { color: #17252d; background: #f7f9fb; border-color: #d4dce1; font-weight: 800; }
 .card-fallback:hover { color: #17252d; background: #e8eef2; border-color: #c1cdd4; }
 #paypal-card-button-container { width: 200px; min-height: 44px; }
+.paypal-rendering { visibility: hidden; }
+.promo-paypal-group { display: contents; }
+.promo-paypal-group.paypal-loading, .video-paypal-actions.paypal-loading { visibility: hidden; }
 .video-paypal-actions { display: grid; gap: .35rem; margin-top: .4rem; }
 .video-paypal-choice { min-width: 0; width: 100%; }
 .video-paypal-target, .video-card-target { width: 100%; min-height: 34px; }
