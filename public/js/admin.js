@@ -370,9 +370,10 @@ function purchaseVideoTitle(row) {
 }
 
 function purchaseProvider(row) {
-  const raw = String(pickPurchaseField(row, ['provider', 'source', 'method'], '')).toLowerCase();
+  const raw = String(pickPurchaseField(row, ['payment_method', 'provider', 'source', 'method'], '')).toLowerCase();
   if (raw.includes('paypal')) return 'PayPal';
   if (raw.includes('payjsr')) return 'PayJSR';
+  if (raw.includes('whop') || raw === 'who') return 'Whop';
   if (raw) return raw;
   return '—';
 }
@@ -401,7 +402,7 @@ function renderPurchaseTable() {
   tbody.innerHTML = state.purchases.map((row) => {
     const name = pickPurchaseField(row, ['buyer_name', 'name', 'customer_name'], '—');
     const email = pickPurchaseField(row, ['buyer_email', 'email', 'customer_email'], '—');
-    const ref = pickPurchaseField(row, ['provider_ref', 'paypal_order_id', 'reference', 'order_id', 'id'], '—');
+    const ref = pickPurchaseField(row, ['transaction_id', 'provider_ref', 'paypal_order_id', 'reference', 'order_id', 'id'], '—');
     const when = formatPurchaseDate(pickPurchaseField(row, ['created_at', 'paid_at', 'inserted_at'], ''));
     return `<tr>
       <td>${escapeHtml(when)}</td>

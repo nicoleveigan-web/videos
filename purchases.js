@@ -1,5 +1,8 @@
 const recordedRefs = new Set();
 
+const PAYMENT_METHODS = new Set(['whop', 'who', 'stripe', 'crypto', 'paypal', 'payjsr']);
+const STATUSES = new Set(['pending', 'completed', 'failed', 'refunded']);
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
 }
@@ -7,7 +10,6 @@ function isUuid(value) {
 function stripColumnFromPayload(fields, errorMessage) {
   const msg = String(errorMessage || '');
   const match = msg.match(/Could not find the '(\w+)' column/i)
-    || msg.match(/column ["']?(\w+)["']? of relation/i)
     || msg.match(/column ["']?(\w+)["']? does not exist/i);
   if (!match || !(match[1] in fields)) return null;
   const next = { ...fields };
@@ -21,39 +23,107 @@ function cleanText(value, max = 200) {
   return s ? s.slice(0, max) : '';
 }
 
+function toAmount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
+}
+
+function normalizePaymentMethod(raw) {
+  const v = String(raw || '').toLowerCase().trim();
+  if (PAYMENT_METHODS.has(v)) return v;
+  if (v.includes('paypal')) return 'paypal';
+  if (v.includes('payjsr')) return 'payjsr';
+  if (v.includes('stripe')) return 'stripe';
+  if (v.includes('crypto')) return 'crypto';
+  if (v.includes('whop') || v === 'who') return 'whop';
+  return 'payjsr';
+}
+
+function normalizeStatus(raw) {
+  const v = String(raw || '').toLowerCase().trim();
+  if (STATUSES.has(v)) return v;
+  if (v === 'paid' || v === 'complete' || v === 'succeeded' || v === 'success') return 'completed';
+  return 'completed';
+}
+
+function nestedEmail(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  return cleanText(
+    obj.email_address
+    || obj.email
+    || obj.customer_email
+    || obj.payer_email
+    || obj.buyer_email
+  );
+}
+
 function paypalPayer(order) {
   const payer = order?.payer || {};
   const given = payer.name?.given_name || '';
   const surname = payer.name?.surname || '';
   const shippingName = order?.purchase_units?.[0]?.shipping?.name?.full_name || '';
   return {
-    buyer_email: cleanText(payer.email_address || payer.email),
+    buyer_email: nestedEmail(payer) || nestedEmail(order?.payment_source?.paypal),
     buyer_name: cleanText([given, surname].filter(Boolean).join(' ') || shippingName),
   };
 }
 
 function payjsrPayer(session) {
   const customer = session?.customer && typeof session.customer === 'object' ? session.customer : {};
+  const billing = session?.billing && typeof session.billing === 'object' ? session.billing : {};
+  const payer = session?.payer && typeof session.payer === 'object' ? session.payer : {};
   return {
-    buyer_email: cleanText(
-      session?.customer_email || customer.email || session?.email || session?.payer_email || ''
-    ),
+    buyer_email: nestedEmail(session)
+      || nestedEmail(customer)
+      || nestedEmail(billing)
+      || nestedEmail(payer)
+      || nestedEmail(session?.metadata),
     buyer_name: cleanText(
-      session?.customer_name || customer.name || session?.name || customer.full_name || ''
+      session?.customer_name
+      || customer.name
+      || customer.full_name
+      || session?.name
+      || billing.name
+      || payer.name
+      || ''
     ),
   };
+}
+
+function fallbackEmail(method, ref) {
+  const safeRef = cleanText(ref, 80).replace(/[^a-z0-9._-]+/gi, '') || 'unknown';
+  return `no-email+${safeRef}@${method}.local`;
 }
 
 export function createPurchaseRecorder(getSupabase) {
   async function findExisting(supabase, ref) {
     if (!ref) return null;
-    const keys = ['provider_ref', 'paypal_order_id', 'order_id', 'reference'];
-    for (const key of keys) {
-      const { data, error } = await supabase.from('purchases').select('id').eq(key, ref).maybeSingle();
-      if (error) continue;
-      if (data?.id) return data;
-    }
+    const { data, error } = await supabase.from('purchases').select('id').eq('transaction_id', ref).maybeSingle();
+    if (!error && data?.id) return data;
     return null;
+  }
+
+  function schemaFields(payload) {
+    const method = normalizePaymentMethod(payload.payment_method);
+    const ref = cleanText(payload.transaction_id, 120);
+    const email = cleanText(payload.buyer_email, 320) || fallbackEmail(method, ref);
+    const fields = {
+      video_id: isUuid(payload.video_id) ? payload.video_id : null,
+      buyer_email: email,
+      buyer_name: cleanText(payload.buyer_name, 200) || null,
+      transaction_id: ref,
+      payment_method: method,
+      amount: toAmount(payload.amount),
+      currency: cleanText(payload.currency, 8).toLowerCase() || 'usd',
+      status: normalizeStatus(payload.status),
+      video_title: cleanText(payload.video_title, 240) || null,
+      product_link: cleanText(payload.product_link, 2000) || null,
+      metadata: payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : null,
+    };
+    Object.keys(fields).forEach((key) => {
+      if (fields[key] === undefined) delete fields[key];
+    });
+    return fields;
   }
 
   async function insertPurchase(payload) {
@@ -63,34 +133,33 @@ export function createPurchaseRecorder(getSupabase) {
       return { ok: false, error: 'Supabase not configured' };
     }
 
-    const ref = cleanText(payload.provider_ref || payload.paypal_order_id || payload.reference || payload.order_id, 120);
-    if (ref && recordedRefs.has(ref)) return { ok: true, duplicate: true };
+    let fields = schemaFields(payload);
+    const ref = fields.transaction_id;
+    if (!ref) {
+      console.error('purchase insert failed: missing transaction_id');
+      return { ok: false, error: 'missing transaction_id' };
+    }
+    if (recordedRefs.has(ref)) return { ok: true, duplicate: true };
 
     try {
       const existing = await findExisting(supabase, ref);
       if (existing) {
-        if (ref) recordedRefs.add(ref);
+        recordedRefs.add(ref);
         return { ok: true, duplicate: true, id: existing.id };
       }
     } catch (err) {
       console.warn('purchase lookup failed:', err?.message || err);
     }
 
-    let fields = { ...payload };
-    if (!isUuid(fields.video_id)) fields.video_id = null;
-    Object.keys(fields).forEach((key) => {
-      if (fields[key] === undefined) delete fields[key];
-    });
-
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
       const { data, error } = await supabase.from('purchases').insert(fields).select('id').maybeSingle();
       if (!error) {
-        if (ref) recordedRefs.add(ref);
+        recordedRefs.add(ref);
         return { ok: true, id: data?.id };
       }
       const code = String(error.code || '');
       if (code === '23505' || /duplicate|unique/i.test(error.message || '')) {
-        if (ref) recordedRefs.add(ref);
+        recordedRefs.add(ref);
         return { ok: true, duplicate: true };
       }
       const stripped = stripColumnFromPayload(fields, error.message);
@@ -120,26 +189,27 @@ export function createPurchaseRecorder(getSupabase) {
       || unit?.amount?.currency_code
       || 'USD';
     const payer = paypalPayer(order);
-    const orderId = String(order?.id || extras.order_id || '').trim();
+    const orderId = String(order?.id || extras.order_id || extras.transaction_id || '').trim();
     const title = extras.title
       || (customId === 'full-content-v1' ? 'Full Content' : unit?.description)
       || '';
 
     return insertPurchase({
       video_id: videoId,
-      buyer_email: payer.buyer_email || extras.buyer_email || null,
-      buyer_name: payer.buyer_name || extras.buyer_name || null,
-      amount: amount != null && amount !== '' ? Number(amount) : null,
-      price: amount != null && amount !== '' ? Number(amount) : null,
-      currency: cleanText(currency, 8) || 'USD',
-      provider: 'paypal',
-      status: 'paid',
-      provider_ref: orderId,
-      paypal_order_id: orderId,
-      order_id: orderId,
-      reference: orderId,
-      product_title: cleanText(title, 240) || null,
-      title: cleanText(title, 240) || null,
+      buyer_email: payer.buyer_email || extras.buyer_email,
+      buyer_name: payer.buyer_name || extras.buyer_name,
+      transaction_id: orderId,
+      payment_method: 'paypal',
+      amount,
+      currency,
+      status: 'completed',
+      video_title: title,
+      product_link: extras.product_link,
+      metadata: {
+        provider: 'paypal',
+        paypal_order_id: orderId,
+        custom_id: customId || null,
+      },
     });
   }
 
@@ -148,24 +218,27 @@ export function createPurchaseRecorder(getSupabase) {
     const isBundle = String(meta.bundle || extras.bundle || '').toLowerCase() === 'all';
     const videoId = isBundle ? null : String(meta.video_id || extras.video_id || '').trim();
     const payer = payjsrPayer(session);
-    const reference = String(session?.reference || extras.reference || '').trim();
+    const reference = String(session?.reference || extras.reference || extras.transaction_id || '').trim();
     const amount = extras.amount ?? session?.amount;
     const title = extras.title || meta.display_title || (isBundle ? 'All videos and folders' : '');
 
     return insertPurchase({
-      video_id: videoId || null,
-      buyer_email: payer.buyer_email || extras.buyer_email || null,
-      buyer_name: payer.buyer_name || extras.buyer_name || null,
-      amount: amount != null && amount !== '' ? Number(amount) : null,
-      price: amount != null && amount !== '' ? Number(amount) : null,
-      currency: cleanText(extras.currency || session?.currency, 8) || 'USD',
-      provider: 'payjsr',
-      status: 'paid',
-      provider_ref: reference,
-      reference,
-      order_id: reference,
-      product_title: cleanText(title, 240) || null,
-      title: cleanText(title, 240) || null,
+      video_id: videoId,
+      buyer_email: payer.buyer_email || extras.buyer_email,
+      buyer_name: payer.buyer_name || extras.buyer_name,
+      transaction_id: reference,
+      payment_method: 'payjsr',
+      amount,
+      currency: extras.currency || session?.currency || 'USD',
+      status: 'completed',
+      video_title: title,
+      product_link: extras.product_link || meta.delivery_url,
+      metadata: {
+        provider: 'payjsr',
+        reference,
+        bundle: isBundle ? 'all' : null,
+        session_status: session?.status || null,
+      },
     });
   }
 

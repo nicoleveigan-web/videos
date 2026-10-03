@@ -506,7 +506,7 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAl
       if (String(session.metadata?.bundle || '').toLowerCase() === 'all') {
         if (typeof recordPayjsrPurchase === 'function') {
           try {
-            await recordPayjsrPurchase(session, { title: 'All videos and folders', bundle: 'all', reference });
+            await recordPayjsrPurchase(session, { title: 'All videos and folders', bundle: 'all', reference, amount: session.amount, currency: session.currency });
           } catch (saveError) {
             console.error('PayJSR purchase save failed:', saveError.message);
           }
@@ -531,7 +531,14 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAl
       const safeProductLink = /^https?:\/\//i.test(productLink) ? productLink : '';
       if (typeof recordPayjsrPurchase === 'function') {
         try {
-          await recordPayjsrPurchase(session, { title: video.title || 'Your purchase', video_id: videoId, reference });
+          await recordPayjsrPurchase(session, {
+            title: video.title || 'Your purchase',
+            video_id: videoId,
+            reference,
+            product_link: safeProductLink,
+            amount: session.amount,
+            currency: session.currency,
+          });
         } catch (saveError) {
           console.error('PayJSR purchase save failed:', saveError.message);
         }

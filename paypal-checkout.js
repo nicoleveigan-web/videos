@@ -184,7 +184,12 @@ export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosFor
       }
       if (typeof recordPaypalPurchase === 'function') {
         try {
-          await recordPaypalPurchase(order, { title, amount: verified.completedCapture.amount.value, currency: verified.completedCapture.amount.currency_code });
+          await recordPaypalPurchase(order, {
+            title,
+            amount: verified.completedCapture.amount.value,
+            currency: verified.completedCapture.amount.currency_code,
+            product_link: productLink,
+          });
         } catch (saveError) {
           console.error('PayPal purchase save failed:', saveError.message);
         }
