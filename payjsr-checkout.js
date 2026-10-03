@@ -333,7 +333,7 @@ function sendPayJSRCheckoutPage(res, payload) {
 </html>`);
 }
 
-export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAllVideosForBundle, getTelegramUsername }) {
+export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAllVideosForBundle, getTelegramUsername, recordPayjsrPurchase }) {
   app.get('/api/payjsr-fx', async (req, res) => {
     try {
       const from = normalizeCurrencyCode(req.query.from, PAYJSR_CHECKOUT_CURRENCY);
@@ -504,6 +504,13 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAl
         return res.status(402).json({ ok: false, pending: true, error: 'Payment is not confirmed yet.' });
       }
       if (String(session.metadata?.bundle || '').toLowerCase() === 'all') {
+        if (typeof recordPayjsrPurchase === 'function') {
+          try {
+            await recordPayjsrPurchase(session, { title: 'All videos and folders', bundle: 'all', reference });
+          } catch (saveError) {
+            console.error('PayJSR purchase save failed:', saveError.message);
+          }
+        }
         return res.json({
           ok: true,
           title: 'All videos and folders',
@@ -522,6 +529,13 @@ export function registerPayjsrRoutes(app, { siteName, getVideoForCheckout, getAl
       if (!video) return res.status(404).json({ ok: false, error: 'Purchased product was not found.' });
       const productLink = String(session.metadata?.delivery_url || video.product_link || '').trim();
       const safeProductLink = /^https?:\/\//i.test(productLink) ? productLink : '';
+      if (typeof recordPayjsrPurchase === 'function') {
+        try {
+          await recordPayjsrPurchase(session, { title: video.title || 'Your purchase', video_id: videoId, reference });
+        } catch (saveError) {
+          console.error('PayJSR purchase save failed:', saveError.message);
+        }
+      }
       res.json({
         ok: true,
         title: video.title || 'Your purchase',

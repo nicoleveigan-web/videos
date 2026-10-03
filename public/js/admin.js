@@ -8,6 +8,7 @@ const state = {
   pendingVideoFile: null,
   pendingVideoPreviewUrl: null,
   cryptoWallets: [],
+  purchases: [],
 };
 
 async function api(path, opts = {}) {
@@ -159,6 +160,7 @@ function showDashboard() {
   show($('#dashboard'));
   $('#admin-email').textContent = state.user?.email || '';
   loadSettings();
+  loadPurchases();
 }
 
 async function loadSettings() {
@@ -320,7 +322,7 @@ async function handleLogin(e) {
     });
     state.user = user;
     showDashboard();
-    await loadVideos();
+    await Promise.all([loadVideos(), loadPurchases()]);
     toast('Login efetuado');
   } catch (err) {
     toast(err.message, true);
@@ -337,6 +339,80 @@ async function handleLogout() {
   }
   state.user = null;
   showLogin();
+}
+
+function pickPurchaseField(row, keys, fallback = '') {
+  for (const key of keys) {
+    if (row[key] != null && String(row[key]).trim() !== '') return row[key];
+  }
+  return fallback;
+}
+
+function formatPurchaseDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function formatPurchaseAmount(row) {
+  const amount = Number(pickPurchaseField(row, ['amount', 'price', 'total'], ''));
+  const currency = String(pickPurchaseField(row, ['currency'], 'USD') || 'USD').toUpperCase();
+  if (!Number.isFinite(amount)) return '—';
+  return `${currency === 'USD' ? '$' : currency + ' '}${amount.toFixed(2)}`;
+}
+
+function purchaseVideoTitle(row) {
+  const joined = row.videos;
+  if (joined && typeof joined === 'object' && !Array.isArray(joined) && joined.title) return joined.title;
+  if (Array.isArray(joined) && joined[0]?.title) return joined[0].title;
+  return pickPurchaseField(row, ['product_title', 'title', 'video_title'], row.video_id ? String(row.video_id).slice(0, 8) : 'Pacote / todos');
+}
+
+function purchaseProvider(row) {
+  const raw = String(pickPurchaseField(row, ['provider', 'source', 'method'], '')).toLowerCase();
+  if (raw.includes('paypal')) return 'PayPal';
+  if (raw.includes('payjsr')) return 'PayJSR';
+  if (raw) return raw;
+  return '—';
+}
+
+async function loadPurchases() {
+  const tbody = $('#purchases-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" class="muted center">A carregar…</td></tr>';
+  try {
+    const { purchases } = await api('/api/admin/purchases');
+    state.purchases = Array.isArray(purchases) ? purchases : [];
+    renderPurchaseTable();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" class="center error-text">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function renderPurchaseTable() {
+  const tbody = $('#purchases-tbody');
+  if (!tbody) return;
+  if (!state.purchases.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted center">Ainda não há pagamentos gravados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = state.purchases.map((row) => {
+    const name = pickPurchaseField(row, ['buyer_name', 'name', 'customer_name'], '—');
+    const email = pickPurchaseField(row, ['buyer_email', 'email', 'customer_email'], '—');
+    const ref = pickPurchaseField(row, ['provider_ref', 'paypal_order_id', 'reference', 'order_id', 'id'], '—');
+    const when = formatPurchaseDate(pickPurchaseField(row, ['created_at', 'paid_at', 'inserted_at'], ''));
+    return `<tr>
+      <td>${escapeHtml(when)}</td>
+      <td>${escapeHtml(name)}</td>
+      <td class="email-cell">${escapeHtml(email)}</td>
+      <td>${escapeHtml(purchaseVideoTitle(row))}</td>
+      <td>${escapeHtml(formatPurchaseAmount(row))}</td>
+      <td>${escapeHtml(purchaseProvider(row))}</td>
+      <td class="muted email-cell">${escapeHtml(String(ref))}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function loadVideos() {
@@ -631,7 +707,10 @@ function init() {
   });
   $('#close-editor').addEventListener('click', closeEditor);
   $('#video-form').addEventListener('submit', handleSave);
-  $('#refresh-btn').addEventListener('click', loadVideos);
+  $('#refresh-btn').addEventListener('click', () => {
+    loadVideos();
+    loadPurchases();
+  });
   $('#save-telegram-btn').addEventListener('click', saveTelegram);
   $('#add-crypto-btn').addEventListener('click', addCryptoRow);
   $('#save-crypto-btn').addEventListener('click', saveCrypto);
@@ -654,6 +733,7 @@ function init() {
     if (ok) {
       showDashboard();
       loadVideos();
+      loadPurchases();
     } else {
       showLogin();
     }

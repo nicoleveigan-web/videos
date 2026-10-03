@@ -144,6 +144,15 @@
     }
     .badge-ok { background: rgba(46,213,115,0.15); color: var(--ok); }
     .badge-off { background: rgba(255,255,255,0.06); color: var(--muted); }
+    .section-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 0.75rem; margin: 1.5rem 0 0.65rem;
+    }
+    .section-head h2 { font-size: 0.95rem; font-weight: 700; }
+    .section-head p { font-size: 0.75rem; color: var(--muted); }
+    .purchases-table { margin-bottom: 1.75rem; }
+    .purchases-table td { font-size: 0.82rem; vertical-align: top; }
+    .email-cell { word-break: break-all; }
 
     .editor-overlay {
       position: fixed; inset: 0; z-index: 200;
@@ -254,7 +263,7 @@
 
       <div class="toolbar">
         <button type="button" class="btn btn-primary" id="new-video-btn">+ Novo vídeo</button>
-        <button type="button" class="btn" id="refresh-btn">Atualizar lista</button>
+        <button type="button" class="btn" id="refresh-btn">Atualizar</button>
       </div>
 
       <section class="settings-card">
@@ -298,6 +307,32 @@
         </section>
       </div>
 
+      <div class="section-head">
+        <h2>Pagamentos</h2>
+        <p>Guardados na tabela <code>purchases</code> após PayPal ou PayJSR confirmarem.</p>
+      </div>
+      <div class="table-wrap purchases-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Email</th>
+              <th>Vídeo</th>
+              <th>Valor</th>
+              <th>Método</th>
+              <th>Referência</th>
+            </tr>
+          </thead>
+          <tbody id="purchases-tbody">
+            <tr><td colspan="7" class="muted center">A carregar…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-head">
+        <h2>Vídeos</h2>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>

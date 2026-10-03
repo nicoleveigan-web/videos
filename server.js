@@ -9,6 +9,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { registerPayjsrRoutes } from './payjsr-checkout.js';
 import { registerPaypalRoutes } from './paypal-checkout.js';
+import { createPurchaseRecorder } from './purchases.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -253,8 +254,10 @@ function sanitizeObjectKey(raw) {
 }
 
 app.use(express.json());
+const purchaseRecorder = createPurchaseRecorder(() => supabase);
 registerPayjsrRoutes(app, {
   siteName: SITE_NAME,
+  recordPayjsrPurchase: purchaseRecorder.recordPayjsrPurchase,
   getVideoForCheckout: async (id) => {
     if (!supabase) return null;
     const { data, error } = await supabase
@@ -279,6 +282,7 @@ registerPayjsrRoutes(app, {
 });
 
 registerPaypalRoutes(app, {
+  recordPaypalPurchase: purchaseRecorder.recordPaypalPurchase,
   getVideoForCheckout: async (id) => {
     if (!supabase) return null;
     const { data, error } = await supabase
@@ -828,6 +832,16 @@ app.post('/api/admin/logout', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/me', requireAdmin, (req, res) => {
   res.json({ user: req.adminUser });
+});
+
+app.get('/api/admin/purchases', requireAdmin, async (req, res) => {
+  try {
+    const purchases = await purchaseRecorder.listPurchases();
+    res.json({ purchases });
+  } catch (e) {
+    console.error('admin purchases:', e);
+    res.status(500).json({ error: e.message || 'Falha ao carregar pagamentos' });
+  }
 });
 
 app.get('/api/admin/settings', requireAdmin, async (req, res) => {

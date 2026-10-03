@@ -69,7 +69,7 @@ function getPurchaseUnit(order) {
   return { purchaseUnit, amount, completedCapture };
 }
 
-export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosForBundle, getTelegramUsername }) {
+export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosForBundle, getTelegramUsername, recordPaypalPurchase }) {
   app.post('/api/paypal/orders', async (req, res) => {
     try {
       if (!paypalConfig().configured) {
@@ -141,6 +141,13 @@ export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosFor
       if (capture.status !== 'COMPLETED') {
         return res.status(402).json({ ok: false, error: 'PayPal has not completed this payment.' });
       }
+      if (typeof recordPaypalPurchase === 'function') {
+        try {
+          await recordPaypalPurchase(capture);
+        } catch (saveError) {
+          console.error('PayPal purchase save failed:', saveError.message);
+        }
+      }
       res.json({ ok: true });
     } catch (error) {
       console.error('PayPal capture failed:', error.message);
@@ -173,6 +180,13 @@ export function registerPaypalRoutes(app, { getVideoForCheckout, getAllVideosFor
             const candidateLink = String(video.product_link || '').trim();
             if (/^https?:\/\//i.test(candidateLink)) productLink = candidateLink;
           }
+        }
+      }
+      if (typeof recordPaypalPurchase === 'function') {
+        try {
+          await recordPaypalPurchase(order, { title, amount: verified.completedCapture.amount.value, currency: verified.completedCapture.amount.currency_code });
+        } catch (saveError) {
+          console.error('PayPal purchase save failed:', saveError.message);
         }
       }
       res.json({
