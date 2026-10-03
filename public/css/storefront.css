@@ -141,8 +141,7 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; }
 .price-row-amt { flex-direction: row; align-items: baseline; gap: .3rem; color: #b77cff; }
 .pay-price, .pay-summary-price { color: var(--text); font-variant-numeric: tabular-nums; }
 .chip, .more-price, .more-head a { color: #b2b8ff; }
-.pay-panel .btn-telegram { background: var(--surface-hover); border-color: var(--stroke-hover); color: var(--text); box-shadow: none; }
-.pay-panel .btn-telegram:hover { background: var(--surface); box-shadow: none; }
+.pay-panel .btn-telegram { margin-top: .45rem; }
 .player-wrap, .pay-panel { border-radius: 14px; }
 .player-meta { padding: 1.4rem; }
 .player-meta h1 { font-size: 1.4rem; }
@@ -305,6 +304,7 @@ body {
 .btn-card-preview:hover { background: rgba(255,255,255,.08); border-color: var(--stroke-hover); }
 .btn-card-buy { background: linear-gradient(135deg, #42ddba, #1bb58f); border-color: #42ddba; color: #06231d; box-shadow: 0 8px 22px rgba(25, 185, 145, .15); }
 .btn-card-buy:hover { background: linear-gradient(135deg, #72efd0, #2cccaa); border-color: #72efd0; color: #041f19; box-shadow: 0 10px 24px rgba(25, 185, 145, .24); }
+.vcard .btn-telegram-block { border-radius: 999px; min-height: 42px; }
 .btn, .promo-btn { transition: transform .2s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease; }
 .btn-success-tg { color: #06231d; background: linear-gradient(135deg, #5de7c4, #20bb96); box-shadow: 0 10px 30px rgba(39, 214, 176, .2); }
 #success-page { background: rgba(3, 12, 16, .88); }

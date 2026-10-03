@@ -324,7 +324,23 @@
       color: var(--text) !important;
     }
     .btn-telegram svg { flex-shrink: 0; width: 0.9em; height: 0.9em; }
-    .btn-telegram-block { width: 100%; flex: none; margin-top: 0.35rem; }
+    .btn-telegram-block {
+      width: 100%;
+      flex: none;
+      margin-top: 0.4rem;
+      background: linear-gradient(180deg, #39a8dc 0%, #229ED9 100%) !important;
+      border-color: #229ED9 !important;
+      color: #fff !important;
+      font-weight: 700;
+      font-size: 0.78rem !important;
+      padding: 0.55rem 0.7rem !important;
+    }
+    .btn-telegram-block:hover {
+      background: linear-gradient(180deg, #48b4ea 0%, #1b8fc4 100%) !important;
+      border-color: #1b8fc4 !important;
+      color: #fff !important;
+    }
+    .btn-telegram-block svg { width: 1em; height: 1em; }
     .nav-telegram {
       display: inline-flex;
       align-items: center;
@@ -1249,6 +1265,7 @@
                     ? buyBtnHtml(price)
                     : '<button type="button" class="btn btn-card-buy js-details">Details</button>')) +
               '</div>' +
+              telegramBtnHtml(tgUrlForVideo(v, tgUser), 'btn-telegram-block') +
             '</div>';
 
           el.setAttribute('aria-label', (v.title || 'Catalog item') + (isFree ? ', free' : ', ' + price.toFixed(2) + ' USD'));
